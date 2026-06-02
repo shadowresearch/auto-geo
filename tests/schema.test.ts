@@ -13,8 +13,15 @@ describe("resourcePublishSchema", () => {
     });
 
     it("accepts optional fields omitted", () => {
-      const { keywords, ogImage, about, mentions, citations, modifiedAt, ...rest } =
-        VALID_PAYLOAD;
+      const {
+        keywords: _keywords,
+        ogImage: _ogImage,
+        about: _about,
+        mentions: _mentions,
+        citations: _citations,
+        modifiedAt: _modifiedAt,
+        ...rest
+      } = VALID_PAYLOAD;
       const result = resourcePublishSchema.safeParse(rest);
       expect(result.success).toBe(true);
     });

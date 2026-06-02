@@ -62,7 +62,7 @@ describe("deriveArticle", () => {
   });
 
   it("omits citations when not present", () => {
-    const { citations, ...rest } = VALID_PAYLOAD;
+    const { citations: _citations, ...rest } = VALID_PAYLOAD;
     const article = deriveArticle(rest, SITE);
     expect("citation" in article).toBe(false);
   });
