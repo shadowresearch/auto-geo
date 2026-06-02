@@ -7,7 +7,7 @@
 
 **A publishing engine for GEO resource pages — the pages large language models cite.**
 
-`auto-geo` is a content publishing primitive built for the AI search era. Where traditional CMSs optimize for human readers, `auto-geo` optimizes for *citation by AI engines* (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini). It enforces the structural and quality patterns that empirical research links to higher citation rates — TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid page architecture — at the publish boundary.
+`auto-geo` is a content publishing primitive built for the AI search era. Where traditional CMSs optimize for human readers, `auto-geo` optimizes for _citation by AI engines_ (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini). It enforces the structural and quality patterns that empirical research links to higher citation rates — TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid page architecture — at the publish boundary.
 
 Hand the URL of this repo to your coding agent. It will set up a publishing endpoint in your existing app that any other agent can call as a tool. You can then schedule, automate, or wire it into your own workflow.
 
@@ -49,17 +49,17 @@ See [`docs/concept.md`](./docs/concept.md) for a deeper walkthrough.
 
 ## What's in this repo
 
-| Path | What it is |
-|---|---|
-| [`AGENT.md`](./AGENT.md) | The canonical setup spec. Hand this to your coding agent. |
-| [`core/`](./core) | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps. |
-| [`adapters/storage/`](./adapters/storage) | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface. |
-| [`adapters/http/`](./adapters/http) | HTTP adapters — Next.js App Router, Hono. Wrap `core/publish` as a request handler. |
-| [`components/react/`](./components/react) | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`. |
-| [`mcp/`](./mcp) | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish. |
-| [`examples/next-minimal/`](./examples/next-minimal) | Working Next.js 15 app — `/api/resources/publish` + `/resources/[slug]` + minimal index. |
-| [`docs/`](./docs) | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide. |
-| [`tests/`](./tests) | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser. |
+| Path                                                | What it is                                                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [`AGENT.md`](./AGENT.md)                            | The canonical setup spec. Hand this to your coding agent.                                                          |
+| [`core/`](./core)                                   | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps.          |
+| [`adapters/storage/`](./adapters/storage)           | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface.    |
+| [`adapters/http/`](./adapters/http)                 | HTTP adapters — Next.js App Router, Hono. Wrap `core/publish` as a request handler.                                |
+| [`components/react/`](./components/react)           | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`.                                |
+| [`mcp/`](./mcp)                                     | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish. |
+| [`examples/next-minimal/`](./examples/next-minimal) | Working Next.js 15 app — `/api/resources/publish` + `/resources/[slug]` + minimal index.                           |
+| [`docs/`](./docs)                                   | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide.         |
+| [`tests/`](./tests)                                 | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser.              |
 
 ---
 
@@ -144,7 +144,7 @@ The publishing endpoint is the contract. Anything that can issue an authenticate
 
 ## Hard rejects vs. soft warnings
 
-`auto-geo` distinguishes between *structural violations* (rejected with HTTP 400) and *quality heuristics* (returned as `warnings[]` on a 200 response). The split is deliberate: structure is a contract; quality is a continuum.
+`auto-geo` distinguishes between _structural violations_ (rejected with HTTP 400) and _quality heuristics_ (returned as `warnings[]` on a 200 response). The split is deliberate: structure is a contract; quality is a continuum.
 
 **Hard rejects** include: missing required blocks, TL;DR not 40–60 words, FAQ answer not 40–60 words, related-guides count outside 4–8, key-takeaways count outside 4–6, banned promotional superlatives without attribution, raw HTML in prose fields, invalid URLs.
 
@@ -156,17 +156,17 @@ Your agent can iterate on soft warnings by re-posting an updated payload (republ
 
 ## How it compares
 
-| | Traditional CMS | Headless CMS | `auto-geo` |
-|---|---|---|---|
-| Optimized for | Human reading | Multi-channel delivery | AI engine citation |
-| Content shape | Freeform prose | Freeform with custom fields | Validated 7-block architecture |
-| Validation | Editorial review | Schema-light | Strict Zod at publish boundary |
-| Schema.org | Manual | Manual or plugin | Auto-derived from payload |
-| Agent integration | Custom | Custom | First-class (MCP, REST) |
-| Storage | Bundled | Bundled or hosted | Pluggable adapter (your choice) |
-| Lock-in | High | Medium | None — copy the files |
+|                   | Traditional CMS  | Headless CMS                | `auto-geo`                      |
+| ----------------- | ---------------- | --------------------------- | ------------------------------- |
+| Optimized for     | Human reading    | Multi-channel delivery      | AI engine citation              |
+| Content shape     | Freeform prose   | Freeform with custom fields | Validated 7-block architecture  |
+| Validation        | Editorial review | Schema-light                | Strict Zod at publish boundary  |
+| Schema.org        | Manual           | Manual or plugin            | Auto-derived from payload       |
+| Agent integration | Custom           | Custom                      | First-class (MCP, REST)         |
+| Storage           | Bundled          | Bundled or hosted           | Pluggable adapter (your choice) |
+| Lock-in           | High             | Medium                      | None — copy the files           |
 
-`auto-geo` is *not* a CMS. It is a typed publishing primitive that lives inside your app. If you need editorial workflows, drafts, scheduled publish, multi-user collaboration, or a media library, pair it with a CMS — `auto-geo` is downstream of the editorial process, not a replacement for it.
+`auto-geo` is _not_ a CMS. It is a typed publishing primitive that lives inside your app. If you need editorial workflows, drafts, scheduled publish, multi-user collaboration, or a media library, pair it with a CMS — `auto-geo` is downstream of the editorial process, not a replacement for it.
 
 ---
 

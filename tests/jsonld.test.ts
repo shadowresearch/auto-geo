@@ -80,7 +80,10 @@ describe("deriveBreadcrumb", () => {
   });
 
   it("uses custom basePath when provided", () => {
-    const bc = deriveBreadcrumb(VALID_PAYLOAD, { ...SITE, basePath: "/guides" });
+    const bc = deriveBreadcrumb(VALID_PAYLOAD, {
+      ...SITE,
+      basePath: "/guides",
+    });
     expect(bc.itemListElement[1].item).toBe("https://example.com/guides");
   });
 });

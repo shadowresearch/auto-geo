@@ -1,5 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { ContentStore, StoredResource, ListOptions } from "../../core/store";
+import type {
+  ContentStore,
+  StoredResource,
+  ListOptions,
+} from "../../core/store";
 import type { ResourcePublishPayload } from "../../core/schema";
 
 /**

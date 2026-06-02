@@ -66,7 +66,7 @@ chore(deps): bump zod to 3.24
 test(memory-store): cover limit/offset edge cases
 ```
 
-The first line is ≤72 characters. The body, if any, explains *why*, not what.
+The first line is ≤72 characters. The body, if any, explains _why_, not what.
 
 ### Code style
 

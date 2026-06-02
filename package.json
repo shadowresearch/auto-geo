@@ -94,11 +94,21 @@
     "next": ">=14"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "@vercel/kv": { "optional": true },
-    "@supabase/supabase-js": { "optional": true },
-    "hono": { "optional": true },
-    "next": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "@vercel/kv": {
+      "optional": true
+    },
+    "@supabase/supabase-js": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

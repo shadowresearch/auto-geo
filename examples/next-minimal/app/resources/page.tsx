@@ -27,9 +27,7 @@ export default async function ResourcesIndexPage() {
       <h1 className="text-4xl font-semibold tracking-tight text-gray-900 mb-2">
         Resources
       </h1>
-      <p className="text-base text-gray-500 mb-12">
-        Published with auto-geo.
-      </p>
+      <p className="text-base text-gray-500 mb-12">Published with auto-geo.</p>
 
       {Object.entries(byCategory).map(([category, items]) => (
         <section key={category} className="mb-12">

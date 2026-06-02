@@ -1,5 +1,9 @@
 import { kv } from "@vercel/kv";
-import type { ContentStore, StoredResource, ListOptions } from "../../core/store";
+import type {
+  ContentStore,
+  StoredResource,
+  ListOptions,
+} from "../../core/store";
 import type { ResourcePublishPayload } from "../../core/schema";
 
 /**
@@ -27,9 +31,7 @@ import type { ResourcePublishPayload } from "../../core/schema";
  */
 
 function isKvConfigured(): boolean {
-  return Boolean(
-    process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
-  );
+  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
 export type KvStoreOptions = {

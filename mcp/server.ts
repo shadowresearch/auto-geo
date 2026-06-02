@@ -142,11 +142,7 @@ const PublishResourceSchema = z
       .min(50)
       .max(180)
       .describe("<meta name=description> content. 50-180 chars."),
-    category: z
-      .string()
-      .min(1)
-      .max(80)
-      .describe("Index grouping category."),
+    category: z.string().min(1).max(80).describe("Index grouping category."),
     excerpt: z
       .string()
       .min(50)

@@ -35,9 +35,21 @@ describe("createMemoryStore (ContentStore interface)", () => {
   });
 
   it("lists in descending publishedAt order", async () => {
-    await store.publish({ ...VALID_PAYLOAD, slug: "old", publishedAt: "2025-01-01" });
-    await store.publish({ ...VALID_PAYLOAD, slug: "new", publishedAt: "2026-12-31" });
-    await store.publish({ ...VALID_PAYLOAD, slug: "mid", publishedAt: "2026-06-01" });
+    await store.publish({
+      ...VALID_PAYLOAD,
+      slug: "old",
+      publishedAt: "2025-01-01",
+    });
+    await store.publish({
+      ...VALID_PAYLOAD,
+      slug: "new",
+      publishedAt: "2026-12-31",
+    });
+    await store.publish({
+      ...VALID_PAYLOAD,
+      slug: "mid",
+      publishedAt: "2026-06-01",
+    });
     const list = await store.list();
     expect(list.map((r) => r.slug)).toEqual(["new", "mid", "old"]);
   });

@@ -103,7 +103,9 @@ describe("resourcePublishSchema", () => {
     });
 
     it("rejects TL;DR above 60 words", () => {
-      const longText = Array.from({ length: 80 }, (_, i) => `word${i}`).join(" ");
+      const longText = Array.from({ length: 80 }, (_, i) => `word${i}`).join(
+        " "
+      );
       const result = resourcePublishSchema.safeParse({
         ...VALID_PAYLOAD,
         tldr: { text: longText },

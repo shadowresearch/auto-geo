@@ -1,4 +1,8 @@
-import type { ContentStore, StoredResource, ListOptions } from "../../core/store";
+import type {
+  ContentStore,
+  StoredResource,
+  ListOptions,
+} from "../../core/store";
 import type { ResourcePublishPayload } from "../../core/schema";
 
 /**

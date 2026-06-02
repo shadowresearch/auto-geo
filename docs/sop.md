@@ -45,13 +45,13 @@ Rationale: AI engines retrieve against query intent. A page whose H2s mirror pro
 
 Five page types, each with calibrated word-count and density targets:
 
-| Page type | Min words | Max words | Min tables | Min lists | Stats/1k words |
-|---|---|---|---|---|---|
-| `definitive` | 3000 | — | 2 | 5 | 10 |
-| `resource` | 800 | 1500 | 0 | 3 | 3 |
-| `comparison` | 1000 | 1500 | 1 | 3 | 3 |
-| `category` | 2000 | 4000 | 1 | 5 | 5 |
-| `listicle` | 1500 | 3000 | 1 | 5 | 3 |
+| Page type    | Min words | Max words | Min tables | Min lists | Stats/1k words |
+| ------------ | --------- | --------- | ---------- | --------- | -------------- |
+| `definitive` | 3000      | —         | 2          | 5         | 10             |
+| `resource`   | 800       | 1500      | 0          | 3         | 3              |
+| `comparison` | 1000      | 1500      | 1          | 3         | 3              |
+| `category`   | 2000      | 4000      | 1          | 5         | 5              |
+| `listicle`   | 1500      | 3000      | 1          | 5         | 3              |
 
 - **Definitive**: The canonical answer to a query cluster. Long-form, dense, multi-entity. Target: be the page an AI engine quotes when asked "what is X."
 - **Resource**: A focused, single-topic guide. Shorter, more focused. Target: be cited as one source among several in an answer.

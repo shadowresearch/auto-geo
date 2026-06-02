@@ -11,11 +11,20 @@
     "url": "git+https://github.com/shadowresearch/auto-geo.git",
     "directory": "mcp"
   },
-  "keywords": ["mcp", "model-context-protocol", "auto-geo", "geo", "publishing"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "auto-geo",
+    "geo",
+    "publishing"
+  ],
   "bin": {
     "auto-geo-mcp": "./dist/server.js"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",

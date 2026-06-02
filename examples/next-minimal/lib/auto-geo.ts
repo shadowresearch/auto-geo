@@ -12,8 +12,7 @@ import { sampleResource } from "./sample-resource";
 export const store = createMemoryStore({ seed: [sampleResource] });
 
 export const site: SiteConfig = {
-  origin:
-    process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "http://localhost:3000",
+  origin: process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "http://localhost:3000",
   basePath: "/resources",
   publisher: {
     name: "Shadow",

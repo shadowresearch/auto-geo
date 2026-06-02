@@ -41,7 +41,11 @@ export async function generateMetadata({
       description: resource.metaDescription,
       url: canonical,
       ...(ogImage
-        ? { images: [{ url: ogImage, width: 1200, height: 630, alt: resource.title }] }
+        ? {
+            images: [
+              { url: ogImage, width: 1200, height: 630, alt: resource.title },
+            ],
+          }
         : {}),
       authors: [resource.author.name],
       publishedTime: resource.publishedAt,
@@ -92,7 +96,10 @@ export default async function ResourceSlugPage({ params }: PageProps) {
 
       <div className="w-full max-w-3xl mx-auto px-4 pt-8">
         <nav className="flex items-center gap-2 text-xs font-mono text-gray-500 uppercase tracking-wider">
-          <Link href="/resources" className="hover:text-gray-900 transition-colors">
+          <Link
+            href="/resources"
+            className="hover:text-gray-900 transition-colors"
+          >
             Resources
           </Link>
           <span className="text-gray-300">/</span>
@@ -109,7 +116,10 @@ export default async function ResourceSlugPage({ params }: PageProps) {
         disclosureSuffix={
           <>
             Published by{" "}
-            <Link href="/" className="text-blue-600 underline-offset-2 hover:underline">
+            <Link
+              href="/"
+              className="text-blue-600 underline-offset-2 hover:underline"
+            >
               {site.publisher.name}
             </Link>
             .

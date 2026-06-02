@@ -64,9 +64,7 @@ Each section ideally totals 134-167 words (heading + capsule + blocks). Outside 
 ```json
 {
   "relatedGuides": {
-    "items": [
-      { "title": "Other resource title", "url": "https://..." }
-    ]
+    "items": [{ "title": "Other resource title", "url": "https://..." }]
   }
 }
 ```
@@ -113,7 +111,10 @@ Both intro and sections accept a discriminated union of content blocks:
 ### `paragraph`
 
 ```json
-{ "type": "paragraph", "text": "60-100 word paragraph (ideal range; warning outside 40-120)." }
+{
+  "type": "paragraph",
+  "text": "60-100 word paragraph (ideal range; warning outside 40-120)."
+}
 ```
 
 One claim per paragraph. Inline syntax: `**bold**`, `*italic*`, `[label](url)`.
@@ -139,7 +140,10 @@ One claim per paragraph. Inline syntax: `**bold**`, `*italic*`, `[label](url)`.
   "type": "table",
   "caption": "Optional caption",
   "headers": ["Col A", "Col B"],
-  "rows": [["a1", "b1"], ["a2", "b2"]]
+  "rows": [
+    ["a1", "b1"],
+    ["a2", "b2"]
+  ]
 }
 ```
 
@@ -148,7 +152,11 @@ Every row must have one cell per header (validated). 2-10 columns; 1-50 rows.
 ### `quote`
 
 ```json
-{ "type": "quote", "text": "Quoted text", "attribution": "Required attribution" }
+{
+  "type": "quote",
+  "text": "Quoted text",
+  "attribution": "Required attribution"
+}
 ```
 
 ### `image`

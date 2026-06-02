@@ -161,7 +161,10 @@ const DEFAULT_DISCLOSURE_SUFFIX: ReactNode = (
 
 type RenderCtx = {
   cls: Required<ResourceArticleClassNames>;
-  inline: { LinkComponent?: ComponentType<InlineLinkProps>; linkClassName: string };
+  inline: {
+    LinkComponent?: ComponentType<InlineLinkProps>;
+    linkClassName: string;
+  };
 };
 
 function ParagraphBlock({ text, ctx }: { text: string; ctx: RenderCtx }) {
@@ -182,7 +185,8 @@ function ListBlock({
   ctx: RenderCtx;
 }) {
   const Tag = style === "number" ? "ol" : "ul";
-  const listClass = style === "number" ? ctx.cls.numberList : ctx.cls.bulletList;
+  const listClass =
+    style === "number" ? ctx.cls.numberList : ctx.cls.bulletList;
   return (
     <Tag className={listClass}>
       {items.map((item, i) => (
@@ -318,13 +322,26 @@ function ContentBlockRenderer({
         />
       );
     case "quote":
-      return <QuoteBlock text={block.text} attribution={block.attribution} ctx={ctx} />;
+      return (
+        <QuoteBlock
+          text={block.text}
+          attribution={block.attribution}
+          ctx={ctx}
+        />
+      );
     case "image":
       return (
-        <ImageBlock src={block.src} alt={block.alt} caption={block.caption} ctx={ctx} />
+        <ImageBlock
+          src={block.src}
+          alt={block.alt}
+          caption={block.caption}
+          ctx={ctx}
+        />
       );
     case "callout":
-      return <CalloutBlock variant={block.variant} text={block.text} ctx={ctx} />;
+      return (
+        <CalloutBlock variant={block.variant} text={block.text} ctx={ctx} />
+      );
   }
 }
 
@@ -370,7 +387,9 @@ function SectionBlock({
 }) {
   return (
     <section>
-      <h2 className={ctx.cls.h2}>{renderInline(section.heading, ctx.inline)}</h2>
+      <h2 className={ctx.cls.h2}>
+        {renderInline(section.heading, ctx.inline)}
+      </h2>
       <p className={ctx.cls.paragraph}>
         {renderInline(section.answerCapsule, ctx.inline)}
       </p>
@@ -430,7 +449,9 @@ function Faq({
       {items.map((item, i) => (
         <div key={i}>
           <h3 className={ctx.cls.h3}>{item.question}</h3>
-          <p className={ctx.cls.paragraph}>{renderInline(item.answer, ctx.inline)}</p>
+          <p className={ctx.cls.paragraph}>
+            {renderInline(item.answer, ctx.inline)}
+          </p>
         </div>
       ))}
     </section>
@@ -541,7 +562,11 @@ export function ResourceArticle({
       <KeyTakeaways items={payload.keyTakeaways.items} ctx={ctx} />
       <Faq heading={payload.faq.heading} items={payload.faq.items} ctx={ctx} />
       <AboutTheAuthor author={payload.author} ctx={ctx} />
-      <Disclosure text={payload.disclosure.text} suffix={disclosureSuffix} ctx={ctx} />
+      <Disclosure
+        text={payload.disclosure.text}
+        suffix={disclosureSuffix}
+        ctx={ctx}
+      />
     </article>
   );
 }

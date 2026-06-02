@@ -20,10 +20,7 @@ export {
   type ResourceTargetPlatform,
 } from "./schema";
 
-export {
-  auditResource,
-  type ResourceWarning,
-} from "./validation";
+export { auditResource, type ResourceWarning } from "./validation";
 
 export {
   runPublish,
@@ -44,8 +41,4 @@ export {
   type ResourceJsonLdBundle,
 } from "./jsonld";
 
-export type {
-  ContentStore,
-  StoredResource,
-  ListOptions,
-} from "./store";
+export type { ContentStore, StoredResource, ListOptions } from "./store";

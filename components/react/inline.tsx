@@ -43,7 +43,11 @@ export type InlineOptions = {
 };
 
 const TOKENS = [
-  { open: "**", close: "**", render: (kids: ReactNode) => <strong>{kids}</strong> },
+  {
+    open: "**",
+    close: "**",
+    render: (kids: ReactNode) => <strong>{kids}</strong>,
+  },
   { open: "*", close: "*", render: (kids: ReactNode) => <em>{kids}</em> },
 ] as const;
 

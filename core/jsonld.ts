@@ -1,7 +1,4 @@
-import type {
-  ResourceContentBlock,
-  ResourcePublishPayload,
-} from "./schema";
+import type { ResourceContentBlock, ResourcePublishPayload } from "./schema";
 import type { SiteConfig } from "./publish";
 
 /**
@@ -24,7 +21,10 @@ function basePath(site: SiteConfig): string {
   return site.basePath ?? "/resources";
 }
 
-function resourceUrl(payload: ResourcePublishPayload, site: SiteConfig): string {
+function resourceUrl(
+  payload: ResourcePublishPayload,
+  site: SiteConfig
+): string {
   return `${site.origin}${basePath(site)}/${payload.slug}`;
 }
 

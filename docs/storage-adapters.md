@@ -17,7 +17,7 @@ Three reference adapters ship in `adapters/storage/`. All three implement the sa
 
 ```ts
 import { createKvStore } from "auto-geo/storage/kv";
-const store = createKvStore({ namespace: "myapp" });  // namespace optional
+const store = createKvStore({ namespace: "myapp" }); // namespace optional
 ```
 
 **Required env**:
@@ -40,7 +40,7 @@ KV_REST_API_TOKEN=...
 
 ```ts
 import { createSupabaseStore } from "auto-geo/storage/supabase";
-const store = createSupabaseStore();  // reads SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+const store = createSupabaseStore(); // reads SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
 ```
 
 **Required env**:
@@ -70,7 +70,11 @@ create index on auto_geo_resources (published_at desc);
 
 ```ts
 import { createMemoryStore } from "auto-geo/storage/memory";
-const store = createMemoryStore({ seed: [/* optional initial payloads */] });
+const store = createMemoryStore({
+  seed: [
+    /* optional initial payloads */
+  ],
+});
 ```
 
 Process-local. Loses everything on restart. Use only for tests, demos, and local development. The adapter accepts a `seed` array of `ResourcePublishPayload` so example apps can render a populated `/resources` index on first run.

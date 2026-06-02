@@ -120,10 +120,7 @@ function statisticsCount(text: string): number {
     /\b\d+x\b/g,
     /\bOR=\d+(\.\d+)?\b/gi,
   ];
-  return patterns.reduce(
-    (acc, re) => acc + (text.match(re) || []).length,
-    0
-  );
+  return patterns.reduce((acc, re) => acc + (text.match(re) || []).length, 0);
 }
 
 /**
@@ -172,11 +169,41 @@ type PageTypeExpectations = {
 };
 
 const PAGE_TYPE_EXPECTATIONS: Record<ResourcePageType, PageTypeExpectations> = {
-  definitive: { minWords: 3000, maxWords: null, minTables: 2, minLists: 5, statsPerThousand: 10 },
-  resource: { minWords: 800, maxWords: 1500, minTables: 0, minLists: 3, statsPerThousand: 3 },
-  comparison: { minWords: 1000, maxWords: 1500, minTables: 1, minLists: 3, statsPerThousand: 3 },
-  category: { minWords: 2000, maxWords: 4000, minTables: 1, minLists: 5, statsPerThousand: 5 },
-  listicle: { minWords: 1500, maxWords: 3000, minTables: 1, minLists: 5, statsPerThousand: 3 },
+  definitive: {
+    minWords: 3000,
+    maxWords: null,
+    minTables: 2,
+    minLists: 5,
+    statsPerThousand: 10,
+  },
+  resource: {
+    minWords: 800,
+    maxWords: 1500,
+    minTables: 0,
+    minLists: 3,
+    statsPerThousand: 3,
+  },
+  comparison: {
+    minWords: 1000,
+    maxWords: 1500,
+    minTables: 1,
+    minLists: 3,
+    statsPerThousand: 3,
+  },
+  category: {
+    minWords: 2000,
+    maxWords: 4000,
+    minTables: 1,
+    minLists: 5,
+    statsPerThousand: 5,
+  },
+  listicle: {
+    minWords: 1500,
+    maxWords: 3000,
+    minTables: 1,
+    minLists: 5,
+    statsPerThousand: 3,
+  },
 };
 
 // ── Section-level audits ──────────────────────────────────────────

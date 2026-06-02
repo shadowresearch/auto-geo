@@ -8,9 +8,7 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.{ts,tsx}"],
     environment: "node",
-    environmentMatchGlobs: [
-      ["tests/**/*.test.tsx", "jsdom"],
-    ],
+    environmentMatchGlobs: [["tests/**/*.test.tsx", "jsdom"]],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

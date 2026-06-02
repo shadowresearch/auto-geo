@@ -35,16 +35,20 @@ describe("renderInline", () => {
   });
 
   it("renders internal [label](/path) as <a> with no target by default", () => {
-    const { container } = render(
-      <Subject text="see [home](/home)" />
-    );
+    const { container } = render(<Subject text="see [home](/home)" />);
     const anchor = container.querySelector("a");
     expect(anchor?.getAttribute("href")).toBe("/home");
     expect(anchor?.getAttribute("target")).toBeNull();
   });
 
   it("uses LinkComponent for internal links when provided", () => {
-    function FakeLink({ href, children }: { href: string; children: React.ReactNode }) {
+    function FakeLink({
+      href,
+      children,
+    }: {
+      href: string;
+      children: React.ReactNode;
+    }) {
       return (
         <a href={href} data-internal-link>
           {children}
@@ -69,9 +73,7 @@ describe("renderInline", () => {
   });
 
   it("supports nested **bold *italic***", () => {
-    const { container } = render(
-      <Subject text="**bold *italic* end**" />
-    );
+    const { container } = render(<Subject text="**bold *italic* end**" />);
     const strong = container.querySelector("strong");
     expect(strong).not.toBeNull();
     const em = strong?.querySelector("em");

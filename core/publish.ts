@@ -1,7 +1,4 @@
-import {
-  resourcePublishSchema,
-  type ResourcePublishPayload,
-} from "./schema";
+import { resourcePublishSchema, type ResourcePublishPayload } from "./schema";
 import { auditResource, type ResourceWarning } from "./validation";
 import type { ContentStore } from "./store";
 

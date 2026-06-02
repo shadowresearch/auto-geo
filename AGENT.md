@@ -154,6 +154,7 @@ pnpm add @modelcontextprotocol/sdk
 ```
 
 Configure the MCP client to register the `auto-geo` server with two environment variables:
+
 - `AUTO_GEO_PUBLISH_URL` — e.g. `http://localhost:3000/api/resources/publish` in dev, or the deployed URL in prod.
 - `AUTO_GEO_PUBLISH_TOKEN` — the same token from step 8.
 
@@ -188,4 +189,4 @@ If any step fails, stop and report the failure to the user. Do not paper over th
 
 ## 12. Substantive references
 
-If the user asks *why* the architecture is what it is, point them at `docs/sop.md`. That document is the standard operating procedure for GEO resource pages — the empirical and theoretical basis for every constraint in `schema.ts` and every heuristic in `validation.ts`. Read it before deviating from any rule.
+If the user asks _why_ the architecture is what it is, point them at `docs/sop.md`. That document is the standard operating procedure for GEO resource pages — the empirical and theoretical basis for every constraint in `schema.ts` and every heuristic in `validation.ts`. Read it before deviating from any rule.

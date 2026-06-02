@@ -33,12 +33,12 @@ Then visit `http://localhost:3000/resources/<slug>`.
 
 ## Wiring summary
 
-| File | What it does |
-|---|---|
-| `app/api/resources/publish/route.ts` | Wires `createNextHandlers` from `auto-geo/next`. |
-| `app/resources/[slug]/page.tsx` | Reads from the store, renders `ResourceArticle`, emits JSON-LD. |
-| `app/resources/page.tsx` | Index listing all published resources by category. |
-| `lib/auto-geo.ts` | Shared store + site config — instantiated once and imported wherever needed. |
+| File                                 | What it does                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| `app/api/resources/publish/route.ts` | Wires `createNextHandlers` from `auto-geo/next`.                             |
+| `app/resources/[slug]/page.tsx`      | Reads from the store, renders `ResourceArticle`, emits JSON-LD.              |
+| `app/resources/page.tsx`             | Index listing all published resources by category.                           |
+| `lib/auto-geo.ts`                    | Shared store + site config — instantiated once and imported wherever needed. |
 
 ## Swapping the store
 

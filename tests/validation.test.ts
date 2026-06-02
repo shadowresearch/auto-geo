@@ -22,7 +22,9 @@ describe("auditResource", () => {
       };
       const warnings = auditResource(payload);
       expect(
-        warnings.some((w) => w.sop === "§3" && /question-format/.test(w.message))
+        warnings.some(
+          (w) => w.sop === "§3" && /question-format/.test(w.message)
+        )
       ).toBe(true);
     });
 

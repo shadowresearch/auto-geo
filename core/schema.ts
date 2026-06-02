@@ -392,8 +392,13 @@ export const resourcePublishSchema = z
 
     // ── Authoring ───────────────────────────────────────────────
     author: authorSchema,
-    publishedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "publishedAt must be ISO yyyy-mm-dd."),
-    modifiedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "modifiedAt must be ISO yyyy-mm-dd.").optional(),
+    publishedAt: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "publishedAt must be ISO yyyy-mm-dd."),
+    modifiedAt: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "modifiedAt must be ISO yyyy-mm-dd.")
+      .optional(),
 
     // ── SEO ─────────────────────────────────────────────────────
     keywords: z.array(z.string().min(1).max(80)).max(15).optional(),
@@ -458,9 +463,7 @@ export const resourcePublishSchema = z
         }
       }
     };
-    val.intro.blocks.forEach((b, i) =>
-      checkTable(b, ["intro", "blocks", i])
-    );
+    val.intro.blocks.forEach((b, i) => checkTable(b, ["intro", "blocks", i]));
     val.sections.forEach((section, si) =>
       section.blocks.forEach((b, bi) =>
         checkTable(b, ["sections", si, "blocks", bi])
