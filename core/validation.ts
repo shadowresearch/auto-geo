@@ -142,7 +142,7 @@ function namedEntityCount(text: string): number {
     const tokens = sentence.split(/\s+/);
     let inEntity = false;
     for (let i = 0; i < tokens.length; i++) {
-      const t = tokens[i].replace(/[^a-zA-Z']/g, "");
+      const t = tokens[i]!.replace(/[^a-zA-Z']/g, "");
       const isCapStart = /^[A-Z]/.test(t);
       if (i === 0) {
         inEntity = false;
@@ -330,7 +330,7 @@ export function auditResource(
 
   const selfSlugRegex = new RegExp(`/resources/${payload.slug}(?:$|[/?#])`);
   for (let i = 0; i < payload.relatedGuides.items.length; i++) {
-    if (selfSlugRegex.test(payload.relatedGuides.items[i].url)) {
+    if (selfSlugRegex.test(payload.relatedGuides.items[i]!.url)) {
       warnings.push({
         path: `relatedGuides.items[${i}]`,
         message: `Related Guides entry links to the page itself; SOP §5d explicitly forbids self-links.`,

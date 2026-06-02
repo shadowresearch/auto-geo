@@ -448,11 +448,12 @@ export const resourcePublishSchema = z
     ) => {
       if (block.type !== "table") return;
       for (let i = 0; i < block.rows.length; i++) {
-        if (block.rows[i].length !== block.headers.length) {
+        const row = block.rows[i]!;
+        if (row.length !== block.headers.length) {
           ctx.addIssue({
             code: "custom",
             path: [...pathPrefix, "rows", i],
-            message: `Row ${i + 1} has ${block.rows[i].length} cells but table has ${block.headers.length} columns.`,
+            message: `Row ${i + 1} has ${row.length} cells but table has ${block.headers.length} columns.`,
           });
         }
       }
