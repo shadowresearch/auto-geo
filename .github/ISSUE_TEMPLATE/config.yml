@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/shadowresearch/auto-geo/discussions
+    about: Ask a question, propose an idea, or share how you're using auto-geo.
+  - name: Security
+    url: https://github.com/shadowresearch/auto-geo/blob/main/SECURITY.md
+    about: Report a security issue privately.
+  - name: Shadow
+    url: https://www.shadow.inc
+    about: Learn about the team behind auto-geo.

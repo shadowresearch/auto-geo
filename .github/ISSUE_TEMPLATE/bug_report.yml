@@ -1,0 +1,89 @@
+name: Bug report
+description: Report a bug in auto-geo
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the sections below so we can reproduce and triage quickly. For security issues, use SECURITY.md instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: auto-geo version
+      description: From your package.json or pnpm-lock.yaml
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      multiple: false
+      options:
+        - Node.js
+        - Bun
+        - Deno
+        - Vercel Functions
+        - Cloudflare Workers
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Runtime version
+      placeholder: "Node 22.5.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: false
+      options:
+        - schema (core/schema.ts)
+        - validation (core/validation.ts)
+        - publish pipeline (core/publish.ts)
+        - jsonld (core/jsonld.ts)
+        - storage adapter (KV / Supabase / memory)
+        - HTTP adapter (Next.js / Hono)
+        - React renderer (components/react)
+        - MCP server (mcp/)
+        - docs
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: A payload, code snippet, or curl command that triggers the bug. The smaller the better.
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the error message, stack trace, or unexpected output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help — related issues, workarounds you tried, etc.

@@ -1,0 +1,125 @@
+{
+  "name": "auto-geo",
+  "version": "0.1.0",
+  "description": "Publishing engine for GEO resource pages — the pages large language models cite. Built by Shadow.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Shadow (https://www.shadow.inc)",
+  "homepage": "https://github.com/shadowresearch/auto-geo#readme",
+  "bugs": "https://github.com/shadowresearch/auto-geo/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shadowresearch/auto-geo.git"
+  },
+  "keywords": [
+    "geo",
+    "generative-engine-optimization",
+    "ai-search",
+    "aeo",
+    "llmo",
+    "schema-org",
+    "structured-content",
+    "publishing",
+    "next.js",
+    "mcp",
+    "shadow"
+  ],
+  "exports": {
+    ".": {
+      "types": "./core/index.ts",
+      "import": "./core/index.ts"
+    },
+    "./schema": {
+      "types": "./core/schema.ts",
+      "import": "./core/schema.ts"
+    },
+    "./validation": {
+      "types": "./core/validation.ts",
+      "import": "./core/validation.ts"
+    },
+    "./jsonld": {
+      "types": "./core/jsonld.ts",
+      "import": "./core/jsonld.ts"
+    },
+    "./react": {
+      "types": "./components/react/index.ts",
+      "import": "./components/react/index.ts"
+    },
+    "./next": {
+      "types": "./adapters/http/next.ts",
+      "import": "./adapters/http/next.ts"
+    },
+    "./hono": {
+      "types": "./adapters/http/hono.ts",
+      "import": "./adapters/http/hono.ts"
+    },
+    "./storage/kv": {
+      "types": "./adapters/storage/kv.ts",
+      "import": "./adapters/storage/kv.ts"
+    },
+    "./storage/supabase": {
+      "types": "./adapters/storage/supabase.ts",
+      "import": "./adapters/storage/supabase.ts"
+    },
+    "./storage/memory": {
+      "types": "./adapters/storage/memory.ts",
+      "import": "./adapters/storage/memory.ts"
+    }
+  },
+  "files": [
+    "core",
+    "adapters",
+    "components",
+    "docs",
+    "AGENT.md",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "peerDependencies": {
+    "zod": "^3.23.0 || ^4.0.0",
+    "react": ">=18",
+    "@vercel/kv": "^3.0.0",
+    "@supabase/supabase-js": "^2.0.0",
+    "hono": "^4.0.0",
+    "next": ">=14"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "@vercel/kv": { "optional": true },
+    "@supabase/supabase-js": { "optional": true },
+    "hono": { "optional": true },
+    "next": { "optional": true }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^9.0.0",
+    "jsdom": "^25.0.0",
+    "prettier": "^3.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.23.0"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
