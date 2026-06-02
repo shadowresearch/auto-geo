@@ -228,7 +228,7 @@ describe("resourcePublishSchema", () => {
     });
 
     it("allows attributed 'industry-leading' (per Source)", () => {
-      const text = `Our industry-leading platform per Gartner runs validation, persistence, revalidation, and JSON-LD derivation in a fixed order so every published resource page is structurally correct and immediately discoverable; this is a description for testing the attribution allowance path completely.`;
+      const text = `Our industry-leading platform per Gartner runs validation, persistence, revalidation, and JSON-LD derivation in a fixed order so every published resource page is structurally correct and immediately discoverable; this is a description for testing the attribution allowance path completely and reliably here.`;
       const result = resourcePublishSchema.safeParse({
         ...VALID_PAYLOAD,
         tldr: { text },
@@ -237,7 +237,7 @@ describe("resourcePublishSchema", () => {
     });
 
     it("allows 'industry-leading' inside a quoted passage", () => {
-      const text = `The analyst said "this is industry-leading work" about our publishing pipeline which runs validation, persistence, revalidation, and JSON-LD derivation in a fixed order so every published resource page is structurally correct and immediately discoverable here.`;
+      const text = `The analyst said "this is industry-leading work" about our publishing pipeline which runs validation, persistence, revalidation, and JSON-LD derivation in a fixed order so every published resource page is structurally correct and immediately discoverable in our complete description here for testing the quoted-passage allowance path properly.`;
       const result = resourcePublishSchema.safeParse({
         ...VALID_PAYLOAD,
         tldr: { text },

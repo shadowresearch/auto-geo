@@ -118,7 +118,11 @@ export function renderInline(
     for (const tok of TOKENS) {
       if (text.startsWith(tok.open, i)) {
         const closeIdx = text.indexOf(tok.close, i + tok.open.length);
-        if (closeIdx !== -1) {
+        // Require a non-empty inner span. This also prevents the single-`*`
+        // token from chewing the second asterisk of an unterminated `**`,
+        // which would otherwise render as an empty <em> and swallow the
+        // markers entirely.
+        if (closeIdx > i + tok.open.length) {
           const inner = text.slice(i + tok.open.length, closeIdx);
           flushBuf();
           const innerNodes = renderInline(inner, options, keyIdx * 7);
