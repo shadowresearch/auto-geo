@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  esbuild: {
+    // Use the automatic JSX runtime so test files don't need to import React.
+    jsx: "automatic",
+  },
   test: {
     include: ["tests/**/*.test.{ts,tsx}"],
     environment: "node",

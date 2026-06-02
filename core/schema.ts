@@ -191,30 +191,22 @@ const listBlockSchema = z.object({
     .max(30, "Lists must have ≤30 items."),
 });
 
-const tableBlockSchema = z
-  .object({
-    type: z.literal("table"),
-    caption: z.string().max(200).optional(),
-    headers: z
-      .array(z.string().min(1).max(120))
-      .min(2, "Tables must have ≥2 columns.")
-      .max(10, "Tables must have ≤10 columns."),
-    rows: z
-      .array(z.array(z.string().max(500)))
-      .min(1, "Tables must have ≥1 row.")
-      .max(50, "Tables must have ≤50 rows."),
-  })
-  .superRefine((val, ctx) => {
-    for (let i = 0; i < val.rows.length; i++) {
-      if (val.rows[i].length !== val.headers.length) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["rows", i],
-          message: `Row ${i + 1} has ${val.rows[i].length} cells but table has ${val.headers.length} columns.`,
-        });
-      }
-    }
-  });
+// NOTE: this MUST remain a plain ZodObject (no `.superRefine` wrapping)
+// because it participates in `z.discriminatedUnion` below, which only
+// accepts ZodObject inputs in Zod 3.x. The row/header cell-count check
+// runs at the top-level schema refine — see `resourcePublishSchema`.
+const tableBlockSchema = z.object({
+  type: z.literal("table"),
+  caption: z.string().max(200).optional(),
+  headers: z
+    .array(z.string().min(1).max(120))
+    .min(2, "Tables must have ≥2 columns.")
+    .max(10, "Tables must have ≤10 columns."),
+  rows: z
+    .array(z.array(z.string().max(500)))
+    .min(1, "Tables must have ≥1 row.")
+    .max(50, "Tables must have ≤50 rows."),
+});
 
 const quoteBlockSchema = z.object({
   type: z.literal("quote"),
@@ -448,6 +440,31 @@ export const resourcePublishSchema = z
         message: "modifiedAt cannot be earlier than publishedAt.",
       });
     }
+    // Table row/header consistency. Lives here (not on tableBlockSchema)
+    // because z.discriminatedUnion requires plain ZodObject options.
+    const checkTable = (
+      block: ResourceContentBlock,
+      pathPrefix: (string | number)[]
+    ) => {
+      if (block.type !== "table") return;
+      for (let i = 0; i < block.rows.length; i++) {
+        if (block.rows[i].length !== block.headers.length) {
+          ctx.addIssue({
+            code: "custom",
+            path: [...pathPrefix, "rows", i],
+            message: `Row ${i + 1} has ${block.rows[i].length} cells but table has ${block.headers.length} columns.`,
+          });
+        }
+      }
+    };
+    val.intro.blocks.forEach((b, i) =>
+      checkTable(b, ["intro", "blocks", i])
+    );
+    val.sections.forEach((section, si) =>
+      section.blocks.forEach((b, bi) =>
+        checkTable(b, ["sections", si, "blocks", bi])
+      )
+    );
   });
 
 // ── Exported types ────────────────────────────────────────────────
