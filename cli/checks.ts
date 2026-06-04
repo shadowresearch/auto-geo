@@ -109,7 +109,12 @@ export function checkTldrPresent(page: ParsedPage): CheckResult {
   // capitalized first word abutting the previous paragraph's period).
   // That recovers the real sentence boundary across element joins
   // without changing behavior for well-spaced prose.
-  const labelMatch = page.text.match(/TL;?DR[:\s]+([\s\S]{0,800})/i);
+  // The separator after the label is `[:\s]*` (zero-or-more) rather
+  // than `+`, because `<p>TL;DR</p><p>Generative…</p>` concatenates
+  // under linkedom's textContent as `"TL;DRGenerative…"` with no
+  // separator. With `+`, the first match falls through to a later
+  // mid-prose mention of "TL;DR" and captures unrelated content.
+  const labelMatch = page.text.match(/TL;?DR[:\s]*([\s\S]{0,800})/i);
   // Read up to 3 sentence-bounded chunks for the labelled-TL;DR case.
   // A canonical SOP-shaped TL;DR is 40–60 words, frequently 2–3
   // sentences; taking only the first sentence under-counts and reports

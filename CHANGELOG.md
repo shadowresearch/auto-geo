@@ -8,6 +8,12 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-06-04
+
+### Fixed
+
+- **`auto-geo doctor` TL;DR label matcher** — when a renderer emits `<p>TL;DR</p>` immediately followed by the TL;DR body in a sibling `<p>` (the common HTML pattern), linkedom's `textContent` joins the two with NO whitespace: `"TL;DRGenerative…"`. The previous regex required `[:\s]+` after the label, missed the real TL;DR, and instead anchored on a later mid-prose mention of "TL;DR" — capturing unrelated content and reporting 80 words on a 50-word TL;DR. Switched the separator to `[:\s]*` so the first occurrence anchors correctly regardless of inter-element whitespace. Doctor now scores correctly-architected pages 7/8 instead of 5/8.
+
 ## [0.2.1] — 2026-06-04
 
 ### Fixed
@@ -117,7 +123,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/shadowresearch/auto-geo/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/shadowresearch/auto-geo/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/shadowresearch/auto-geo/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/shadowresearch/auto-geo/compare/v0.1.2...v0.1.3
