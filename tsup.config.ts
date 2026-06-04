@@ -46,10 +46,16 @@ export default defineConfig([
       options.jsx = "automatic";
     },
   },
-  // CLI build — single executable, esm-only, linkedom bundled in.
+  // CLI build — single executable, esm-only, linkedom + AI SDK bundled in.
   // Shebang is injected via `banner` so the bin shim runs directly.
   // `clean` is intentionally false here so this build does not wipe
   // the library output that ran first in the same `tsup` invocation.
+  //
+  // We bundle `ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic` into the CLI
+  // binary so `npx auto-geo write` works without users installing those
+  // packages themselves. They are devDependencies in package.json (not
+  // runtime deps) because the library exports do NOT depend on them —
+  // only the CLI does, and the CLI is single-file via tsup.
   {
     entry: { "cli/bin": "cli/bin.ts" },
     format: ["esm"],
@@ -60,7 +66,14 @@ export default defineConfig([
     clean: false,
     dts: false,
     banner: { js: "#!/usr/bin/env node" },
-    // Bundle linkedom so the CLI is self-contained — users running
-    // `npx auto-geo doctor` shouldn't need a separate install step.
+    // `linkedom` is bundled into the CLI (single executable for the
+    // `doctor` subcommand). The AI SDK packages (`ai`, `@ai-sdk/openai`,
+    // `@ai-sdk/anthropic`) are kept external because some transitive
+    // deps (notably `@vercel/oidc`) rely on CJS `require()` at module
+    // load — bundling them via esbuild breaks the require shim under
+    // ESM. They are listed as real runtime dependencies in
+    // package.json so `npm i auto-geo` installs them alongside.
+    external: ["ai", "@ai-sdk/openai", "@ai-sdk/anthropic"],
+    noExternal: ["linkedom"],
   },
 ]);

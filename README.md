@@ -31,6 +31,7 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 - [Quickstart (production setup)](#quickstart-production-setup)
 - [Examples](#examples)
 - [`auto-geo doctor` — audit any page for citation readiness](#auto-geo-doctor--audit-any-page-for-citation-readiness)
+- [`auto-geo write` — generate pages from queries](#auto-geo-write--generate-pages-from-queries)
 - [The publishing flow](#the-publishing-flow)
 - [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
 - [How it compares](#how-it-compares)
@@ -384,6 +385,57 @@ Use cases:
 - **Dashboard integration** — `--json` returns a stable schema you can wire into Datadog, your internal admin, or your weekly GEO scorecard.
 
 See [`docs/doctor.md`](./docs/doctor.md) for the full check reference, JSON schema, and programmatic API (`runDoctor`, `runSitemapDoctor`, `auditHtml`).
+
+---
+
+## `auto-geo write` — generate pages from queries
+
+`auto-geo doctor` tells you whether a page is citation-ready. `auto-geo write` produces a page that already passes the audit. Give it your domain and the queries you want to be cited for; get back validated, publish-ready JSON files.
+
+```bash
+export OPENAI_API_KEY=sk-…   # or ANTHROPIC_API_KEY=… with --provider anthropic
+
+npx auto-geo@latest write \
+  --domain https://www.shadow.inc \
+  --query "what is GEO" \
+  --query "GEO vs SEO" \
+  --query "how to get cited by ChatGPT" \
+  --out ./resources
+```
+
+```text
+auto-geo write — generate publish-ready resource pages from target queries
+domain:   https://www.shadow.inc
+queries:  3
+provider: openai (gpt-4o-mini)
+
+✓ "what is GEO"
+  → ./resources/geo.json (validated, ~$0.06)
+✓ "GEO vs SEO"
+  → ./resources/geo-vs-seo.json (validated, ~$0.06)
+✓ "how to get cited by ChatGPT"
+  → ./resources/get-cited-chatgpt.json (validated, ~$0.06)
+
+Total: 3 pages · 3 ok · ~$0.18 spent · 47s elapsed
+```
+
+Each JSON file is validated against the canonical [`resourcePublishSchema`](./core/schema.ts) — the same schema your publish endpoint enforces — so a successful write is guaranteed-publishable. POST them to your endpoint or commit them to your content store.
+
+The system prompt encodes the [GEO SOP](./docs/sop.md) (TL;DR length, answer-capsule windows, banned superlatives, FAQ structure, related-guides count, …) and the soft heuristics from `auto-geo doctor` (question-format H2s, entity density ≥ 8/1k words, image cadence). The Vercel AI SDK's `generateObject` constrains output to the Zod schema; we re-validate with the canonical schema defense-in-depth and feed the issues back to the LLM as a bounded self-correction loop on failure.
+
+```bash
+# Try it before paying — shows the plan + cost estimate, no LLM calls
+npx auto-geo write --domain https://example.com --query "what is X" --dry-run
+
+# Multiple providers
+npx auto-geo write --domain … --query … --provider anthropic --model claude-sonnet-4-6
+
+# A whole batch from a file
+echo "what is GEO\nGEO vs SEO\nhow do I rank in AI Overviews" > queries.txt
+npx auto-geo write --domain https://example.com --queries-file queries.txt
+```
+
+See [`docs/write.md`](./docs/write.md) for the full flag reference, the system prompt, cost-model details, and the programmatic API (`runWrite`).
 
 ---
 
