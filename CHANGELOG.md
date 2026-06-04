@@ -8,11 +8,17 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-06-03
+
 ### Added
 
+- **`auto-geo doctor` CLI** — new `npx auto-geo doctor <url>` command audits any public page for GEO citation readiness across 8 heuristics (TL;DR, question-format H2s, Article + FAQPage JSON-LD, entity density, answer-first lede, image cadence, self-link detection). Supports `--site <sitemap-url>` for whole-site audits and `--json` for CI integration. Exits 0 if score ≥ 75%. Ships as the `auto-geo` bin; `linkedom` is bundled into the binary so the CLI works standalone via `npx auto-geo@latest doctor`.
 - **Cloudflare Workers HTTP adapter** — new `auto-geo/cloudflare` subpath exporting `createCloudflareHandlers` (compose with your own `fetch`) and `createCloudflareFetch` (one-line default export). Uses only the Fetch API — no Node imports, no Cloudflare SDK dependency. Reads the bearer token from the Workers `env` argument at request time and maps publish/delete results to the same HTTP status contract as the Next.js and Hono adapters. Optional `onSuccess` hook for cache invalidation.
 - `examples/cloudflare-workers/` — minimal Worker app with `wrangler.toml`, both integration styles, in-memory store seeded with one valid payload, and a sample `curl` for the canonical smoke-test payload.
-- `tests/cloudflare.test.ts` — 22 new tests covering routing, auth, every result `kind`, the `onSuccess` hook, content-type, and the `createCloudflareFetch` wrapper.
+- **Discoverability infrastructure**: `/llms.txt` + `/llms-full.txt` at the repo root following the [llmstxt.org](https://llmstxt.org) convention (regenerable via `pnpm discovery:build`); `/openapi.yaml` OpenAPI 3.1 spec for the publish + delete endpoints mirroring the Next.js adapter; GitHub Pages docs site under `docs/` (Jekyll, Cayman theme) — every page emits `<link rel="alternate" type="text/plain" href="…llms.txt">`, Article JSON-LD, and a "Built with auto-geo by Shadow" footer.
+- README header badges for the docs site URL and `llms.txt` availability.
+- README `API` and `LLM-friendly` sections.
+- 89 new tests across CLI heuristics, Cloudflare adapter, and discoverability infra. 101 → 190 total.
 
 ## [0.1.2] — 2026-06-03
 
@@ -82,7 +88,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/shadowresearch/auto-geo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/shadowresearch/auto-geo/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/shadowresearch/auto-geo/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/shadowresearch/auto-geo/releases/tag/v0.1.0
