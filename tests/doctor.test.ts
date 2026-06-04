@@ -80,6 +80,31 @@ describe("checkTldrPresent", () => {
     expect(result.pass).toBe(true);
     expect(result.detail).toContain("TL;DR label");
   });
+
+  it("handles a multi-sentence labelled TL;DR (canonical 50-word, 3 sentences)", () => {
+    // Realistic SOP-shaped TL;DR — 50 words across 3 sentences.
+    const text =
+      "TL;DR Generative Engine Optimization is the practice of structuring web content so generative AI search engines extract, quote, and cite it inside answers. Where SEO optimizes for ranked links, GEO optimizes for inclusion inside a synthesized answer. The mechanics are concrete: answer-first prose and question-format headings.";
+    const result = checkTldrPresent(makePage({ text }));
+    expect(result.pass).toBe(true);
+    expect(result.detail).toMatch(/4[5-9]|5[0-5] words/);
+  });
+
+  it("recovers TL;DR sentence boundaries when paragraphs concatenate without whitespace", () => {
+    // linkedom's textContent joins `</p><p>` boundaries without
+    // inserting a space, so a real rendered TL;DR can look like
+    // "…end of tldr.Next paragraph starts here.". The split heuristic
+    // must still terminate at the period rather than treating the
+    // whole fused passage as one sentence.
+    const tldr =
+      "Generative Engine Optimization is the practice of structuring content so AI engines extract and cite it. The mechanics are answer-first prose, question-format headings, and dense entities. Tools enforce this contract.";
+    const next =
+      "When a developer asks ChatGPT or Perplexity a question, the engine assembles an answer from a handful of pages.";
+    const text = `TL;DR ${tldr}${next}`; // no space between TL;DR and next paragraph
+    const result = checkTldrPresent(makePage({ text }));
+    // 31 words. We expect doctor to *not* count `next` into the TL;DR.
+    expect(result.detail).toMatch(/3[0-5] words/);
+  });
 });
 
 // ── checkQuestionH2 ────────────────────────────────────────────────
@@ -114,6 +139,40 @@ describe("checkQuestionH2", () => {
       { level: 1 as const, text: "A title" },
       { level: 2 as const, text: "What is X?" },
       { level: 3 as const, text: "An h3 detail" },
+    ];
+    expect(checkQuestionH2(makePage({ headings })).pass).toBe(true);
+  });
+
+  it("excludes the page-architecture H2s (Related Guides, Key Takeaways, FAQ, …) from the ratio", () => {
+    // A canonical SOP-shaped page has 6 content sections (all
+    // question-form) plus three structural H2s the renderer emits:
+    // "Related Guides", "Key Takeaways", "Frequently Asked Questions".
+    // Counting the structural three against the ratio penalizes
+    // correctly-architected pages — they need to be excluded.
+    const headings = [
+      { level: 2 as const, text: "What is X?" },
+      { level: 2 as const, text: "How does Y work?" },
+      { level: 2 as const, text: "Why does Z matter?" },
+      { level: 2 as const, text: "When did W ship?" },
+      { level: 2 as const, text: "Where should I start?" },
+      { level: 2 as const, text: "Who owns the work?" },
+      { level: 2 as const, text: "Related Guides" },
+      { level: 2 as const, text: "Key Takeaways" },
+      { level: 2 as const, text: "Frequently Asked Questions" },
+    ];
+    const result = checkQuestionH2(makePage({ headings }));
+    expect(result.pass).toBe(true);
+    // 6 of 6 content H2s are question-form after structural exclusion.
+    expect(result.detail).toContain("6 of 6");
+  });
+
+  it("matches structural H2 names case-insensitively", () => {
+    const headings = [
+      { level: 2 as const, text: "What is X?" },
+      { level: 2 as const, text: "How does Y work?" },
+      { level: 2 as const, text: "FAQ" },
+      { level: 2 as const, text: "DISCLOSURE" },
+      { level: 2 as const, text: "key takeaways" },
     ];
     expect(checkQuestionH2(makePage({ headings })).pass).toBe(true);
   });

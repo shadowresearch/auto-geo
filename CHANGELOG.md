@@ -8,6 +8,18 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-04
+
+### Fixed
+
+- **`auto-geo doctor` TL;DR check** — multi-sentence labelled TL;DRs were over-counted when adjacent `<p>` elements concatenated without whitespace (`linkedom`'s `textContent` doesn't insert spaces at element boundaries, so `"…end of TL;DR.Next paragraph…"` defeated the `[.!?]\s+` sentence split). The split now also terminates on a period followed by an uppercase letter, recovering the real sentence boundary. Also collects the first three sentence chunks rather than just the first, so canonical 40–60 word multi-sentence TL;DRs report correctly instead of under-counting.
+- **`auto-geo doctor` question-format H2 check** — the page-architecture H2s the renderer emits (`Related Guides`, `Key Takeaways`, `Frequently Asked Questions`, `About the Author`, `Disclosure`, `References`, `Citations`, `Table of Contents`) are now excluded from the ratio. They're page furniture, not extractable content questions; counting them against the score penalized correctly-architected pages with 6 of 9 instead of 6 of 6.
+- Spotted by running doctor against fresh `auto-geo write`-generated pages on shadow.inc/resources, which scored a misleading 5/8 due to these two false positives.
+
+### Test coverage
+
+- +4 tests pinning the multi-sentence-TL;DR fix, the cross-paragraph sentence-boundary fix, the structural-H2 exclusion, and case-insensitive structural matching. 300 → 304.
+
 ## [0.2.0] — 2026-06-04
 
 ### Added — three new CLI commands forming a closed loop with `doctor`
@@ -105,7 +117,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/shadowresearch/auto-geo/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/shadowresearch/auto-geo/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/shadowresearch/auto-geo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/shadowresearch/auto-geo/compare/v0.1.1...v0.1.2
