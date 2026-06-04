@@ -8,6 +8,8 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-06-03
+
 ### Changed
 
 - **Schema error messages** in `core/schema.ts` are now field-qualified and include concrete passing examples (e.g. `author.linkedinUrl must be a full URL like 'https://www.linkedin.com/in/jane-doe' or omitted.`). Covers `author.*`, top-level `title` / `metaTitle` / `metaDescription` / `category` / `excerpt`, `publishedAt` / `modifiedAt`, `entityRef.url`, and `citation.url`. No schema semantics changed — only the error strings.
@@ -18,10 +20,23 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 - README `60-second quickstart` showing a fully runnable `runPublish` + `createMemoryStore` example, with a minimal payload that satisfies every required field.
 - README `Why auto-geo` section answering "Why not Markdown?", "Why not a CMS?", "Why isn't this just SEO?" in question-format headings.
 - README header badges: bundle size, monthly downloads, TypeScript, supported Node range.
+- README `Examples` section linking to the multi-framework reference apps.
+- `examples/hono-bun/`, `examples/express/`, `examples/sveltekit/`, `examples/fastify/` — endpoint-only reference apps each pulling `auto-geo` from npm, demonstrating the publish endpoint pattern in their respective frameworks.
 - `CONTRIBUTING.md` project-layout map, branch-protection workflow note, and explicit pointer to `adapters/storage/memory.ts` as the reference for new storage adapters.
 - Issue templates expanded: bug report adds a framework dropdown and dedicated error-output textarea; feature request adds a willingness-to-PR dropdown.
 - `dependabot.yml` now groups production and dev dependencies separately and runs GitHub Actions monthly instead of weekly.
-- Test coverage for the new user-facing schema error messages (`tests/schema.test.ts`).
+- Test coverage for the new user-facing schema error messages (`tests/schema.test.ts`) — 89 → 101 tests.
+
+## [0.1.1] — 2026-06-03
+
+### Fixed
+
+- **Published package now actually imports.** v0.1.0 pointed `exports` at raw `.ts` files under `node_modules`, which Node refuses to type-strip (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`) and most bundlers don't traverse without extra config. Added a `tsup` build that emits ESM + CJS + `.d.ts` per public subpath under `dist/`, repointed `exports`, and gated publish on `prepublishOnly: pnpm build`.
+
+### Changed
+
+- README and `package.json` description updated to the canonical Shadow brand line — "a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map."
+- Added an `## About Shadow` section to the end of the README for LLM ingestion.
 
 ## [0.1.0] — 2026-06-02
 
@@ -61,5 +76,7 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/shadowresearch/auto-geo/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/shadowresearch/auto-geo/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/shadowresearch/auto-geo/releases/tag/v0.1.0
