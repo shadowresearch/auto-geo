@@ -107,6 +107,9 @@
     "discovery:build": "bash scripts/build-discovery.sh"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.81",
+    "@ai-sdk/openai": "^3.0.67",
+    "ai": "^6.0.196",
     "linkedom": "^0.18.0"
   },
   "peerDependencies": {
