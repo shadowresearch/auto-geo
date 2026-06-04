@@ -109,12 +109,26 @@ export function checkTldrPresent(page: ParsedPage): CheckResult {
   // capitalized first word abutting the previous paragraph's period).
   // That recovers the real sentence boundary across element joins
   // without changing behavior for well-spaced prose.
-  // The separator after the label is `[:\s]*` (zero-or-more) rather
-  // than `+`, because `<p>TL;DR</p><p>Generative…</p>` concatenates
-  // under linkedom's textContent as `"TL;DRGenerative…"` with no
-  // separator. With `+`, the first match falls through to a later
-  // mid-prose mention of "TL;DR" and captures unrelated content.
-  const labelMatch = page.text.match(/TL;?DR[:\s]*([\s\S]{0,800})/i);
+  // Anchor on the FIRST occurrence of "TL;DR" that is immediately
+  // followed by an uppercase letter (the actual TL;DR block's first
+  // word) — possibly across a colon or whitespace. This rejects two
+  // common false anchors:
+  //   1. `<p>TL;DR</p><p>Generative…</p>` → joined under linkedom's
+  //      textContent as `"TL;DRGenerative…"` with no separator. The
+  //      `[:\s]*` (zero-or-more) handles that case.
+  //   2. The page's own metaDescription or H1 mentioning "TL;DR" in a
+  //      list context — `"…seven blocks in order: TL;DR, intro, H2…"`.
+  //      `(?=[A-Z])` requires the next char after the optional
+  //      separator to be a capital letter, which a comma/period meta
+  //      reference fails — so the regex skips to the next occurrence,
+  //      which is the actual TL;DR block.
+  let labelMatch = page.text.match(/TL;?DR[:\s]*(?=[A-Z])([\s\S]{0,800})/i);
+  // Fall back to the lenient pattern if the strict one finds nothing
+  // (e.g. labels styled as "tl;dr summary: …" where content is
+  // lowercase). Better to over-report than to miss the label.
+  if (!labelMatch) {
+    labelMatch = page.text.match(/TL;?DR[:\s]*([\s\S]{0,800})/i);
+  }
   // Read up to 3 sentence-bounded chunks for the labelled-TL;DR case.
   // A canonical SOP-shaped TL;DR is 40–60 words, frequently 2–3
   // sentences; taking only the first sentence under-counts and reports
