@@ -9,3 +9,27 @@ pnpm-lock.yaml
 package-lock.json
 yarn.lock
 CHANGELOG.md
+
+# Discoverability files — formatting is significant.
+# llms.txt follows https://llmstxt.org; openapi.yaml is the API contract;
+# llms-full.txt is a generated concatenation of README + docs.
+llms.txt
+llms-full.txt
+openapi.yaml
+docs/llms.txt
+docs/llms-full.txt
+docs/openapi.yaml
+
+# Jekyll build artifacts.
+_site
+.jekyll-cache
+.jekyll-metadata
+docs/_site
+docs/.jekyll-cache
+docs/.jekyll-metadata
+
+# Jekyll Liquid templates — prettier doesn't understand Liquid and can
+# collapse `{%- ... -%}` blocks into surrounding HTML in ways that change
+# whitespace semantics.
+docs/_layouts
+docs/_includes

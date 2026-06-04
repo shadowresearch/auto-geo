@@ -1,0 +1,66 @@
+# Jekyll configuration for the auto-geo docs site on GitHub Pages.
+#
+# Served from the `docs/` directory on the `main` branch. Toggle Pages on
+# in repo Settings → Pages → Source: "Deploy from a branch" → Branch: main
+# → Folder: /docs.
+#
+# Theme: jekyll-theme-cayman (one of GitHub's supported themes). It gives
+# us a clean header, sensible defaults, and works without a custom
+# workflow. Per-page customizations (LLM-friendly head links, JSON-LD,
+# "Built with auto-geo" footer) live in `docs/_includes/` and are merged
+# in via the standard theme hooks.
+
+title: auto-geo
+description: >-
+  Publishing engine for GEO (Generative Engine Optimization) resource pages
+  — the pages large language models cite. Open-source (MIT), built by Shadow.
+url: https://shadowresearch.github.io
+baseurl: /auto-geo
+
+repository: shadowresearch/auto-geo
+
+# GitHub Pages supported themes:
+# https://pages.github.com/themes/
+theme: jekyll-theme-cayman
+
+# Site-wide author for JSON-LD.
+author:
+  name: Shadow
+  url: https://www.shadow.inc
+
+# Resource URLs surfaced in every page's <head>.
+llms_txt: /auto-geo/llms.txt
+llms_full_txt: /auto-geo/llms-full.txt
+openapi_url: /auto-geo/openapi.yaml
+npm_url: https://www.npmjs.com/package/auto-geo
+repo_url: https://github.com/shadowresearch/auto-geo
+
+# Jekyll defaults to building everything under `docs/`. Skip example
+# code, the README in subfolders, and anything that isn't actually a
+# docs page.
+exclude:
+  - README.md
+  - "*.sql"
+
+# Markdown processor.
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Permalinks: keep them aligned with the file path so existing GitHub
+# links into the repo (/docs/sop.md → /auto-geo/sop) still resolve when
+# the same files are also served as Pages.
+permalink: /:basename
+
+# Pages plugins allowlist.
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-relative-links
+
+# jekyll-relative-links rewrites `./foo.md` → `./foo` so the in-repo links
+# in our docs continue to work on the Pages site.
+relative_links:
+  enabled: true
+  collections: true

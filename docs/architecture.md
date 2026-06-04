@@ -1,5 +1,7 @@
 # Page architecture
 
+> The HTTP contract that enforces this architecture is described in machine-readable form at [`openapi.yaml`](../openapi.yaml) — drop it into Postman, Insomnia, or a ChatGPT Custom GPT Action to call the publish endpoint against your own deployment.
+
 A GEO resource page is composed of seven blocks, in fixed order:
 
 1. **TL;DR** — 40-60 word answer capsule

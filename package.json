@@ -100,7 +100,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "discovery:build": "bash scripts/build-discovery.sh"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",
