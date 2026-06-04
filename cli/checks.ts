@@ -95,14 +95,36 @@ export function checkTldrPresent(page: ParsedPage): CheckResult {
   // Heuristic: a TL;DR is the first text chunk before any H2, OR a
   // chunk explicitly labelled "TL;DR" / "TLDR" / "TL;DR:". Target
   // word count from SOP §5j: 40-60.
+  //
+  // The "find the end of the TL;DR" split is sensitive to how the page
+  // emits whitespace between adjacent <p> elements. linkedom's
+  // `textContent` concatenates element text without inserting a space,
+  // so `</p><p>` boundaries surface as `"…end.Next…"` (no whitespace
+  // after the period). A naïve `[.!?]\s+` split misses those boundaries
+  // entirely and treats the whole element-fused passage as one
+  // sentence — overcounting a 50-word TL;DR up to 80+ words.
+  //
+  // The fix: split on a sentence terminator followed by *either*
+  // whitespace OR an uppercase letter (i.e., the next paragraph's
+  // capitalized first word abutting the previous paragraph's period).
+  // That recovers the real sentence boundary across element joins
+  // without changing behavior for well-spaced prose.
   const labelMatch = page.text.match(/TL;?DR[:\s]+([\s\S]{0,800})/i);
-  const candidate = labelMatch ? labelMatch[1]!.split(/[.!?]\s+/)[0]! : "";
-  const usingLabel = candidate.trim().length > 0;
+  // Read up to 3 sentence-bounded chunks for the labelled-TL;DR case.
+  // A canonical SOP-shaped TL;DR is 40–60 words, frequently 2–3
+  // sentences; taking only the first sentence under-counts and reports
+  // <40 even when the page is correct.
+  const labelChunks = labelMatch
+    ? labelMatch[1]!.split(/[.!?](?=\s|[A-Z]|$)/).filter((s) => s.trim())
+    : [];
+  const candidate = labelChunks.slice(0, 3).join(". ").trim();
+  const usingLabel = candidate.length > 0;
   const source = usingLabel ? candidate : page.leadText;
 
   // Cap the TL;DR window at ~80 words — a labelled TL;DR can be the
   // entire pre-H2 region, and we don't want a 500-word intro to score
-  // as a "TL;DR." The first sentence-bounded chunk is the citable unit.
+  // as a "TL;DR." The first three sentence-bounded chunks are the
+  // citable unit.
   const wc = Math.min(wordCountOf(source), 80);
   const inRange = wc >= 40 && wc <= 60;
 
@@ -123,7 +145,29 @@ export function checkTldrPresent(page: ParsedPage): CheckResult {
 }
 
 export function checkQuestionH2(page: ParsedPage): CheckResult {
-  const h2s = page.headings.filter((h) => h.level === 2);
+  // The GEO page architecture pins structural H2s that aren't content
+  // questions: "Related Guides", "Key Takeaways", "FAQ" / "Frequently
+  // Asked Questions", "About the Author", "Disclosure", "References".
+  // These are page-architecture furniture, not topic headings the AI
+  // engine extracts as Q&A targets — counting them against the
+  // question-format ratio penalizes correctly-architected pages.
+  const STRUCTURAL_H2_PATTERNS = [
+    /^related\s+guides?$/i,
+    /^key\s+takeaways?$/i,
+    /^faq$/i,
+    /^frequently\s+asked\s+questions?$/i,
+    /^about\s+the\s+author$/i,
+    /^disclosure$/i,
+    /^references$/i,
+    /^citations?$/i,
+    /^table\s+of\s+contents$/i,
+    /^contents$/i,
+  ];
+
+  const allH2s = page.headings.filter((h) => h.level === 2);
+  const h2s = allH2s.filter(
+    (h) => !STRUCTURAL_H2_PATTERNS.some((re) => re.test(h.text.trim()))
+  );
   const total = h2s.length;
   const questions = h2s.filter((h) => /\?\s*$/.test(h.text)).length;
   const ratio = total === 0 ? 0 : questions / total;
