@@ -1,0 +1,710 @@
+openapi: 3.1.0
+info:
+  title: auto-geo Publish API
+  version: 0.1.2
+  summary: Publish and delete GEO resource pages.
+  description: |
+    Machine-readable contract for the `auto-geo` publish endpoint.
+
+    `auto-geo` is a typed publishing primitive for GEO (Generative Engine
+    Optimization) resource pages — pages whose structure, density, and
+    citation signals are engineered to be quoted by large language models
+    (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini). The
+    endpoint validates an incoming `ResourcePublishPayload` against the
+    full GEO architecture at the publish boundary; malformed payloads are
+    rejected with a structured Zod issue list.
+
+    This document is not a hosted endpoint. It describes the contract
+    served by the `createNextHandlers` / `createHonoRouter` adapters from
+    the `auto-geo` package when you mount them in your own app. Use it to
+    drive Postman collections, Insomnia workspaces, ChatGPT Custom GPT
+    Actions, Claude HTTP-tool definitions, or your own typed clients.
+
+    Built by [Shadow](https://www.shadow.inc).
+  license:
+    name: MIT
+    identifier: MIT
+    url: https://github.com/shadowresearch/auto-geo/blob/main/LICENSE
+  contact:
+    name: Shadow
+    url: https://www.shadow.inc
+externalDocs:
+  description: Source repository and full docs
+  url: https://github.com/shadowresearch/auto-geo
+servers:
+  - url: "https://{host}"
+    description: Your deployment hosting the auto-geo adapter.
+    variables:
+      host:
+        default: example.com
+        description: |
+          The origin where you mounted `createNextHandlers` or
+          `createHonoRouter`. There is no canonical hosted instance — every
+          consumer deploys their own.
+security:
+  - bearerAuth: []
+tags:
+  - name: resources
+    description: Publish and delete GEO resource pages.
+paths:
+  /api/resources/publish:
+    post:
+      tags: [resources]
+      operationId: publishResource
+      summary: Publish a GEO resource page.
+      description: |
+        Validates the incoming payload against the full GEO architecture
+        (TL;DR length, question-format H2 sections with 40–60 word answer
+        capsules, 4–8 Related Guides, 4–6 Key Takeaways, 3–10 FAQ items,
+        banned superlatives, etc.), persists it via the configured
+        `ContentStore`, and returns the canonical URL plus any soft
+        warnings from the audit step.
+
+        Publishing is idempotent on `slug` — re-posting the same slug
+        overwrites the prior payload.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourcePublishPayload"
+            examples:
+              minimalResource:
+                summary: Minimal valid `resource` page
+                externalValue: https://raw.githubusercontent.com/shadowresearch/auto-geo/main/examples/next-minimal/README.md
+      responses:
+        "200":
+          description: Published. May include soft `warnings[]` from `auditResource`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishSuccess"
+        "400":
+          description: |
+            Either the request body was not valid JSON, or the payload
+            failed schema validation. Validation failures include a Zod
+            `issues[]` array with one entry per violation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidJson:
+                  value:
+                    error: Invalid JSON body.
+                validationFailed:
+                  value:
+                    error: Validation failed.
+                    issues:
+                      - path: tldr.text
+                        message: "TL;DR must be 40-60 words; got 27."
+                      - path: faq.items
+                        message: "FAQ must have ≥3 items (SOP §5f)."
+        "401":
+          description: "Missing or invalid `Authorization: Bearer <token>` header."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Unauthorized.
+        "409":
+          description: |
+            The provided `slug` is in the deployment's `reservedSlugs` list
+            (typically slugs collide with statically routed pages in the
+            host app) and cannot be overwritten via this API.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: 'Slug "about" is reserved by a static page and cannot be overwritten via this API.'
+        "500":
+          description: Server configuration error — `GEO_PUBLISH_TOKEN` is not set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Server configuration error.
+        "502":
+          description: The underlying `ContentStore.publish` threw.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Failed to publish resource.
+    delete:
+      tags: [resources]
+      operationId: deleteResource
+      summary: Delete a previously published GEO resource page.
+      description: |
+        Deletes the resource identified by the `slug` query parameter.
+        The reference adapters (Next.js, Hono) read `slug` from the query
+        string rather than the path so that the publish and delete
+        operations share a single route file.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: slug
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 80
+          description: The slug of the resource to delete.
+          example: how-does-retrieval-augmented-generation-work
+      responses:
+        "200":
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSuccess"
+              example:
+                success: true
+                slug: how-does-retrieval-augmented-generation-work
+        "400":
+          description: Missing required `slug` query parameter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Missing `slug` query parameter."
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Unauthorized.
+        "404":
+          description: No resource exists with that slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Resource not found.
+        "409":
+          description: The slug is reserved and cannot be deleted via this API.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: 'Slug "about" is reserved by a static page and cannot be deleted via this API.'
+        "500":
+          description: Server configuration error — `GEO_PUBLISH_TOKEN` is not set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Server configuration error.
+        "502":
+          description: The underlying `ContentStore.delete` threw.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Failed to delete resource.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: |
+        Send `Authorization: Bearer <token>` where `<token>` matches the
+        value of the `GEO_PUBLISH_TOKEN` environment variable on the
+        deployment (override with `tokenEnv` if you renamed it). Generate
+        with `openssl rand -hex 32`.
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error summary.
+        issues:
+          type: array
+          description: |
+            Populated only on schema-validation failures (HTTP 400).
+            Mirrors the `path` + `message` shape of Zod issues; each entry
+            is one violation.
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path:
+                type: string
+                description: Dot-separated payload path that failed.
+                example: sections.0.answerCapsule
+              message:
+                type: string
+                example: "Section answer capsule must be 40-60 words; got 32."
+    PublishSuccess:
+      type: object
+      required: [success, slug, url, warnings]
+      properties:
+        success:
+          type: boolean
+          const: true
+        slug:
+          type: string
+          description: The published slug, echoed back.
+        url:
+          type: string
+          format: uri
+          description: |
+            Canonical URL of the published page — `site.origin` +
+            `site.basePath` (default `/resources`) + slug.
+          example: https://example.com/resources/how-does-rag-work
+        warnings:
+          type: array
+          description: |
+            Soft warnings from `auditResource` (SOP heuristics like
+            section length, entity density, image cadence). Non-blocking —
+            iterate by re-posting an updated payload.
+          items:
+            $ref: "#/components/schemas/ResourceWarning"
+    DeleteSuccess:
+      type: object
+      required: [success, slug]
+      properties:
+        success:
+          type: boolean
+          const: true
+        slug:
+          type: string
+    ResourceWarning:
+      type: object
+      required: [path, message]
+      properties:
+        path:
+          type: string
+          description: Dot-separated path identifying what triggered the warning.
+          example: sections.2.totalWords
+        message:
+          type: string
+          example: "Section is 198 words (ideal 134-167)."
+    EntityRef:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: OpenAI
+        url:
+          type: string
+          format: uri
+    Citation:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+        publisher:
+          type: string
+    Author:
+      type: object
+      required: [name, jobTitle, bio]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        jobTitle:
+          type: string
+          minLength: 1
+          maxLength: 120
+        bio:
+          type: string
+          minLength: 20
+          maxLength: 600
+        linkedinUrl:
+          type: string
+          format: uri
+    GeoMetadata:
+      type: object
+      required:
+        - targetQueries
+        - pageType
+        - primaryFunction
+        - optimizationFramework
+        - targetPlatforms
+        - informationGainStatement
+        - refreshCadence
+      properties:
+        targetQueries:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            minLength: 3
+            maxLength: 200
+        pageType:
+          type: string
+          enum: [definitive, resource, comparison, category, listicle]
+        primaryFunction:
+          type: string
+          minLength: 5
+          maxLength: 300
+        optimizationFramework:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [AEO, GEO, LLMO]
+        targetPlatforms:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - chatgpt
+              - perplexity
+              - google_aio
+              - google_ai_mode
+              - claude
+              - gemini
+              - copilot
+        informationGainStatement:
+          type: string
+          minLength: 20
+          maxLength: 600
+        proprietaryAssetOpportunity:
+          type: string
+          maxLength: 600
+        refreshCadence:
+          type: string
+          enum: [monthly, quarterly]
+    ParagraphBlock:
+      type: object
+      required: [type, text]
+      properties:
+        type:
+          type: string
+          const: paragraph
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    H3Block:
+      type: object
+      required: [type, text]
+      properties:
+        type:
+          type: string
+          const: h3
+        text:
+          type: string
+          minLength: 1
+          maxLength: 200
+    ListBlock:
+      type: object
+      required: [type, style, items]
+      properties:
+        type:
+          type: string
+          const: list
+        style:
+          type: string
+          enum: [bullet, number]
+        items:
+          type: array
+          minItems: 2
+          maxItems: 30
+          items:
+            type: string
+            minLength: 1
+            maxLength: 1000
+    TableBlock:
+      type: object
+      required: [type, headers, rows]
+      properties:
+        type:
+          type: string
+          const: table
+        caption:
+          type: string
+          maxLength: 200
+        headers:
+          type: array
+          minItems: 2
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: array
+            items:
+              type: string
+              maxLength: 500
+    QuoteBlock:
+      type: object
+      required: [type, text, attribution]
+      properties:
+        type:
+          type: string
+          const: quote
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        attribution:
+          type: string
+          minLength: 1
+          maxLength: 200
+    ImageBlock:
+      type: object
+      required: [type, src, alt]
+      properties:
+        type:
+          type: string
+          const: image
+        src:
+          type: string
+          format: uri
+        alt:
+          type: string
+          minLength: 20
+          maxLength: 300
+          description: Must include entity name + context per SOP §7b.
+        caption:
+          type: string
+          maxLength: 300
+    CalloutBlock:
+      type: object
+      required: [type, variant, text]
+      properties:
+        type:
+          type: string
+          const: callout
+        variant:
+          type: string
+          enum: [info, stat]
+        text:
+          type: string
+          minLength: 1
+          maxLength: 600
+    ContentBlock:
+      oneOf:
+        - $ref: "#/components/schemas/ParagraphBlock"
+        - $ref: "#/components/schemas/H3Block"
+        - $ref: "#/components/schemas/ListBlock"
+        - $ref: "#/components/schemas/TableBlock"
+        - $ref: "#/components/schemas/QuoteBlock"
+        - $ref: "#/components/schemas/ImageBlock"
+        - $ref: "#/components/schemas/CalloutBlock"
+      discriminator:
+        propertyName: type
+        mapping:
+          paragraph: "#/components/schemas/ParagraphBlock"
+          h3: "#/components/schemas/H3Block"
+          list: "#/components/schemas/ListBlock"
+          table: "#/components/schemas/TableBlock"
+          quote: "#/components/schemas/QuoteBlock"
+          image: "#/components/schemas/ImageBlock"
+          callout: "#/components/schemas/CalloutBlock"
+    ContentSection:
+      type: object
+      required: [heading, answerCapsule, blocks]
+      properties:
+        heading:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: H2 heading — ideally 6–10 words in question format (SOP §3).
+        answerCapsule:
+          type: string
+          description: 40–60 word self-contained answer rendered as the first paragraph of the section.
+        blocks:
+          type: array
+          minItems: 0
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/ContentBlock"
+    ResourcePublishPayload:
+      type: object
+      required:
+        - slug
+        - title
+        - metaDescription
+        - category
+        - excerpt
+        - author
+        - publishedAt
+        - geoMetadata
+        - tldr
+        - intro
+        - sections
+        - relatedGuides
+        - keyTakeaways
+        - faq
+        - disclosure
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+          minLength: 1
+          maxLength: 80
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        metaTitle:
+          type: string
+          minLength: 1
+          maxLength: 160
+        metaDescription:
+          type: string
+          minLength: 50
+          maxLength: 180
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+        excerpt:
+          type: string
+          minLength: 50
+          maxLength: 400
+        author:
+          $ref: "#/components/schemas/Author"
+        publishedAt:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+          example: "2026-06-01"
+        modifiedAt:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        keywords:
+          type: array
+          maxItems: 15
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+        ogImage:
+          type: string
+          format: uri
+        geoMetadata:
+          $ref: "#/components/schemas/GeoMetadata"
+        about:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/EntityRef"
+        mentions:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/EntityRef"
+        citations:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/Citation"
+        tldr:
+          type: object
+          required: [text]
+          properties:
+            text:
+              type: string
+              description: 40–60 words. No banned promotional superlatives.
+        intro:
+          type: object
+          required: [blocks]
+          properties:
+            blocks:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                $ref: "#/components/schemas/ContentBlock"
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/ContentSection"
+        relatedGuides:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              minItems: 4
+              maxItems: 8
+              items:
+                type: object
+                required: [title, url]
+                properties:
+                  title:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  url:
+                    type: string
+                    format: uri
+        keyTakeaways:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              minItems: 4
+              maxItems: 6
+              items:
+                type: string
+                description: 10–35 words. Declarative, not interrogative (SOP §5e).
+        faq:
+          type: object
+          required: [items]
+          properties:
+            heading:
+              type: string
+              maxLength: 100
+            items:
+              type: array
+              minItems: 3
+              maxItems: 10
+              items:
+                type: object
+                required: [question, answer]
+                properties:
+                  question:
+                    type: string
+                    minLength: 5
+                    maxLength: 300
+                  answer:
+                    type: string
+                    description: 40–60 words. No banned promotional superlatives.
+        disclosure:
+          type: object
+          required: [text]
+          properties:
+            text:
+              type: string
+              minLength: 20
+              maxLength: 1000

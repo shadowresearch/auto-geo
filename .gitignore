@@ -11,3 +11,11 @@ build/
 coverage/
 .turbo/
 *.tgz
+
+# Jekyll / GitHub Pages
+_site/
+.jekyll-cache/
+.jekyll-metadata
+docs/_site/
+docs/.jekyll-cache/
+docs/.jekyll-metadata

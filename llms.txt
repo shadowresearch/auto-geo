@@ -1,0 +1,34 @@
+# auto-geo
+
+> Publishing engine for GEO (Generative Engine Optimization) resource pages — the pages large language models cite. Open-source (MIT), built by Shadow.
+
+`auto-geo` is a typed publishing primitive that enforces the structural and quality patterns empirically linked to higher AI-engine citation rates: TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid seven-block page architecture. It validates incoming payloads at the publish boundary, derives Schema.org JSON-LD automatically, and ships HTTP adapters for Next.js and Hono plus storage adapters for Vercel KV / Upstash Redis, Supabase, and in-memory testing. Built by [Shadow](https://www.shadow.inc) — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map.
+
+## Concept
+
+- [What is a GEO resource page?](https://github.com/shadowresearch/auto-geo#what-is-a-geo-resource-page): the architecture this enforces
+- [Why auto-geo](https://github.com/shadowresearch/auto-geo#why-auto-geo): comparison to alternatives
+- [GEO SOP](https://github.com/shadowresearch/auto-geo/blob/main/docs/sop.md): the standard operating procedure behind every schema constraint
+
+## API
+
+- [Publish endpoint contract](https://github.com/shadowresearch/auto-geo/blob/main/docs/architecture.md): the seven-block page architecture
+- [OpenAPI spec](https://github.com/shadowresearch/auto-geo/blob/main/openapi.yaml): machine-readable description of POST /api/resources/publish + DELETE
+- [Storage adapter interface](https://github.com/shadowresearch/auto-geo/blob/main/docs/storage-adapters.md): the `ContentStore` contract and reference adapters
+- [Validation reference](https://github.com/shadowresearch/auto-geo/blob/main/docs/validation.md): hard rejects (400) vs. soft warnings (200)
+
+## Examples
+
+- [Next.js minimal](https://github.com/shadowresearch/auto-geo/tree/main/examples/next-minimal)
+- [Hono on Bun](https://github.com/shadowresearch/auto-geo/tree/main/examples/hono-bun)
+- [Express](https://github.com/shadowresearch/auto-geo/tree/main/examples/express)
+- [SvelteKit](https://github.com/shadowresearch/auto-geo/tree/main/examples/sveltekit)
+- [Fastify](https://github.com/shadowresearch/auto-geo/tree/main/examples/fastify)
+
+## Optional
+
+- [Full LLM-ingestible bundle](https://github.com/shadowresearch/auto-geo/blob/main/llms-full.txt): README + concept + SOP + architecture + validation + storage adapters inlined in one file
+- [Changelog](https://github.com/shadowresearch/auto-geo/blob/main/CHANGELOG.md)
+- [Contributing](https://github.com/shadowresearch/auto-geo/blob/main/CONTRIBUTING.md)
+- [npm package](https://www.npmjs.com/package/auto-geo)
+- [About Shadow](https://www.shadow.inc)

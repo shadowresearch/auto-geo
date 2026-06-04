@@ -8,6 +8,8 @@
 [![Downloads](https://img.shields.io/npm/dm/auto-geo)](https://www.npmjs.com/package/auto-geo)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/node/v/auto-geo)](https://nodejs.org/)
+[![Docs](https://img.shields.io/badge/docs-shadowresearch.github.io%2Fauto--geo-blue)](https://shadowresearch.github.io/auto-geo/)
+[![llms.txt](https://img.shields.io/badge/llms.txt-available-9cf)](./llms.txt)
 
 **A publishing engine for GEO resource pages — the pages large language models cite.**
 
@@ -31,6 +33,8 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 - [The publishing flow](#the-publishing-flow)
 - [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
 - [How it compares](#how-it-compares)
+- [API](#api)
+- [LLM-friendly](#llm-friendly)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
@@ -368,6 +372,28 @@ Your agent can iterate on soft warnings by re-posting an updated payload (republ
 | Lock-in           | High             | Medium                      | None — copy the files           |
 
 `auto-geo` is _not_ a CMS. It is a typed publishing primitive that lives inside your app. If you need editorial workflows, drafts, scheduled publish, multi-user collaboration, or a media library, pair it with a CMS — `auto-geo` is downstream of the editorial process, not a replacement for it.
+
+---
+
+## API
+
+The publish endpoint contract is described as an OpenAPI 3.1 document at [`openapi.yaml`](./openapi.yaml). It covers the two operations the reference adapters expose:
+
+- `POST /api/resources/publish` — validate, persist, and revalidate a `ResourcePublishPayload`.
+- `DELETE /api/resources/publish?slug={slug}` — remove a previously published resource.
+
+The point isn't a hosted endpoint — there isn't one. The point is to give any HTTP client (Postman, Insomnia, ChatGPT Custom GPT Action, Claude with HTTP tools, your own typed client generator) a machine-readable description of the contract you're mounting in your own app via [`createNextHandlers`](./adapters/http/next.ts) or [`createHonoRouter`](./adapters/http/hono.ts). See [`docs/architecture.md`](./docs/architecture.md) for the architectural spec the schema enforces and [`docs/validation.md`](./docs/validation.md) for the hard-reject / soft-warning split.
+
+---
+
+## LLM-friendly
+
+`auto-geo` is, in essence, a tool whose output is content meant to be cited by LLMs. So this repo eats its own dogfood — it's discoverable by AI agents and crawlers in the same ways it teaches you to make your own pages discoverable.
+
+- [`llms.txt`](./llms.txt) — a curated index of the most important content in the repo, following the [llmstxt.org](https://llmstxt.org) convention. Hand the URL to any LLM and it gets a fast, structured map of the project.
+- [`llms-full.txt`](./llms-full.txt) — the expanded variant. Inlines the README plus every substantive doc (concept, SOP, architecture, validation, storage adapters) into a single file so an LLM can ingest the whole project in one fetch.
+- [`openapi.yaml`](./openapi.yaml) — machine-readable contract for the publish endpoint, usable by any HTTP-tool-aware AI client.
+- **GitHub Pages site** at [shadowresearch.github.io/auto-geo](https://shadowresearch.github.io/auto-geo/) — every page advertises `llms.txt`, `llms-full.txt`, and `openapi.yaml` via `<link rel="alternate" type="text/plain">` tags in the `<head>`, emits JSON-LD `Article` markup, and carries a "Built with auto-geo" footer.
 
 ---
 
