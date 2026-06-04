@@ -33,6 +33,7 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 - [`auto-geo doctor` — audit any page for citation readiness](#auto-geo-doctor--audit-any-page-for-citation-readiness)
 - [`auto-geo fix` — rewrite a page for citation readiness](#auto-geo-fix--rewrite-a-page-for-citation-readiness)
 - [`auto-geo write` — generate pages from queries](#auto-geo-write--generate-pages-from-queries)
+- [`auto-geo check` — measure actual citation coverage](#auto-geo-check--measure-actual-citation-coverage)
 - [The publishing flow](#the-publishing-flow)
 - [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
 - [How it compares](#how-it-compares)
@@ -508,6 +509,56 @@ npx auto-geo write --domain https://example.com --queries-file queries.txt
 ```
 
 See [`docs/write.md`](./docs/write.md) for the full flag reference, the system prompt, cost-model details, and the programmatic API (`runWrite`).
+
+---
+
+## `auto-geo check` — measure actual citation coverage
+
+Where `doctor` grades a page for citation _readiness_, `check` measures the citation _outcome_: for a list of queries, do AI search engines actually surface your domain?
+
+```bash
+export PERPLEXITY_API_KEY=pplx-xxxx
+npx auto-geo@latest check \
+  --domain shadow.inc \
+  --query "what is GEO" \
+  --query "how do I get cited by ChatGPT" \
+  --query "open source GEO tools" \
+  --engine perplexity
+```
+
+```text
+auto-geo check — measure citation coverage in AI search engines
+domain:    shadow.inc
+queries:   3
+engine:    perplexity (sonar)
+
+[1/3] "what is GEO"
+  ✗ shadow.inc NOT cited (5 sources: arxiv.org, searchengineland.com, …)
+
+[2/3] "how do I get cited by ChatGPT"
+  ✓ shadow.inc cited — 2 pages
+    · https://www.shadow.inc/resources/get-cited-by-ai-search (rank 1 of 6)
+    · https://github.com/shadowresearch/auto-geo (rank 4 of 6)
+
+[3/3] "open source GEO tools"
+  ✓ shadow.inc cited — 1 page
+    · https://github.com/shadowresearch/auto-geo (rank 2 of 4)
+
+Coverage: 2/3 queries (67%) · 3 page citations total · ~$0.012 spent
+```
+
+Exit code: `0` if coverage > 0%, `1` if 0%. Drop into CI to fail deploys when none of your critical queries cite you:
+
+```bash
+npx auto-geo check --domain shadow.inc --queries-file geo/critical-queries.txt && deploy
+```
+
+Engines today:
+
+- **`perplexity`** (default) — full Perplexity Sonar API integration. Requires `PERPLEXITY_API_KEY`. `--model sonar-pro` for the higher-quality tier.
+- **`openai`** — scaffolded but not yet wired (throws "not yet implemented"). The Responses-API `web_search_preview` citation parser is in place; the HTTP call lands in a follow-up.
+
+See [`docs/check.md`](./docs/check.md) for the full flag reference, JSON schema, domain-matching rules, rank semantics, and CI examples.
 
 ---
 
