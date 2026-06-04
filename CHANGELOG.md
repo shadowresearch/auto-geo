@@ -8,11 +8,22 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
-### Added
+## [0.2.0] — 2026-06-04
 
-- **`auto-geo fix` CLI** — new `npx auto-geo fix <url>` command generates a GEO-optimized rewrite of any public webpage via the Vercel AI SDK (`generateObject` against `resourcePublishSchema` as the typed-output target). Orchestrates fetch → doctor audit → LLM generation → Zod validation → disk write. The doctor report and source page text are passed in as the LLM context so the rewrite specifically targets the failing checks. Supports `--provider openai|anthropic`, `--model <name>`, `--max-retries N`, `--dry-run`, `--json`, `--basepath`, and `--author-*` flags. Reads `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` from env. Self-correction loop feeds Zod issues back to the model on schema-parse failure. Article + FAQPage JSON-LD checks pass by construction once the payload is published — the renderer auto-emits them. New runtime deps: `ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`.
-- `docs/fix.md` reference docs (prompt template, cost model, troubleshooting, programmatic API).
-- **`auto-geo check` CLI** — new `npx auto-geo check --domain <domain> --query <q>` subcommand measures whether AI search engines actually cite your domain for given queries. Calls a real grounded-search API per (query, engine) pair, normalizes citations across engines, and reports coverage (`N/M queries cited`), per-page rank, and estimated cost. Exits `0` if coverage > 0%, `1` if 0% — CI-friendly. Perplexity Sonar adapter ships full end-to-end (`PERPLEXITY_API_KEY`); OpenAI adapter is scaffolded as a stub with the `url_citation` parser in place for a follow-up PR; `--engine all` reserved. Domain matching is case-insensitive, strips `www.`, and matches subdomains via suffix without false-positive substring matches. Supports `--queries-file`, `--concurrency`, `--json`, and `--out`. See [docs/check.md](./docs/check.md).
+### Added — three new CLI commands forming a closed loop with `doctor`
+
+- **`auto-geo write` CLI** — `npx auto-geo write --domain <url> --query <q> [--query <q>...] --out <dir>` generates one publish-ready `ResourcePublishPayload` JSON per target query. Each file is validated against `resourcePublishSchema` before write; on schema failure the LLM is re-prompted with Zod issues as feedback (default 2 retries). Supports `--provider openai|anthropic`, `--model`, `--queries-file`, `--basepath`, `--author-*`, `--concurrency`, `--dry-run`, and `--json`. Cost estimation per provider/model from the SDK's `usage` field. Reads `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` from env. See [docs/write.md](./docs/write.md).
+- **`auto-geo fix` CLI** — `npx auto-geo fix <url>` generates a GEO-optimized rewrite of any public webpage. Orchestrates fetch → doctor audit → LLM generation → Zod validation → disk write. The doctor report + source page text are passed in as LLM context so the rewrite specifically targets the failing checks. Same flags + env vars as `write`, plus a projected "after" doctor score. Article + FAQPage JSON-LD pass by construction once the payload is published — the renderer auto-emits them. See [docs/fix.md](./docs/fix.md).
+- **`auto-geo check` CLI** — `npx auto-geo check --domain <domain> --query <q>` measures whether AI search engines actually cite your domain for given queries. Calls a real grounded-search API per (query, engine) pair, normalizes citations across engines, and reports coverage (`N/M queries cited`), per-page rank, and estimated cost. Exits `0` if coverage > 0%, `1` if 0% — CI-friendly. Perplexity Sonar adapter ships full end-to-end (`PERPLEXITY_API_KEY`); OpenAI adapter is scaffolded as a stub with the `url_citation` parser in place; `--engine all` reserved. Domain matching is case-insensitive, strips `www.`, matches subdomains via suffix. See [docs/check.md](./docs/check.md).
+- **`cli/llm.ts`** — shared Vercel AI SDK helper exporting `generateResourcePayload`, `getLanguageModel`, `GEO_SYSTEM_PROMPT`, `estimateGenerationCostUsd`. Used by both `write` and `fix`. Provider-agnostic — currently `openai` and `anthropic`. New runtime deps: `ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`.
+
+### Changed
+
+- **`auto-geo doctor` network errors** are now agent-readable and actionable. Raw HTTP status strings replaced with one-line cause hypotheses: 401/403 → bot detection / WAF / auth wall (+ sandbox-egress hint), 404 → page doesn't exist, 429 → rate-limited, 5xx → server error, `AbortError` → timeout, `ENOTFOUND` → DNS, `ECONNREFUSED` → connection refused, generic `fetch failed` → sandbox egress hypothesis. Reported by a peer Claude instance running doctor against shadow.inc from an egress-restricted sandbox.
+
+### Test coverage
+
+- 190 → 300 tests (+110): 37 write, 30 fix, 39 check, 4 doctor error-message specs.
 
 ## [0.1.3] — 2026-06-03
 
@@ -94,7 +105,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/shadowresearch/auto-geo/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/shadowresearch/auto-geo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/shadowresearch/auto-geo/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/shadowresearch/auto-geo/compare/v0.1.0...v0.1.1
