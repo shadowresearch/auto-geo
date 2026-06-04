@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { createEngine, runCheck, type EngineName } from "./check";
 import {
   renderReport,
   renderSitemapReport,
@@ -13,6 +14,7 @@ import {
   runWrite,
 } from "./write";
 import { renderFixHuman, renderFixJson, runFix, type FixCliFlags } from "./fix";
+import { renderCheckHuman, renderCheckJson } from "./render";
 import type { LlmProvider, ProviderId } from "./llm";
 import type { ResourceAuthor } from "../core/schema";
 
@@ -26,12 +28,14 @@ import type { ResourceAuthor } from "../core/schema";
  *   - `auto-geo doctor <url>`   — audit a single URL or sitemap
  *   - `auto-geo fix <url>`      — LLM-driven GEO rewrite of an existing page
  *   - `auto-geo write --domain` — generate resource pages from queries
+ *   - `auto-geo check --domain` — measure citation coverage in AI engines
  *   - bare `<url>` → doctor (back-compat with v0.1.3)
  *
  * Subcommands each parse their own flags in dedicated parsers
- * (`parseDoctorArgs`, `parseFixArgs`, `parseWriteArgs`) so a parallel
- * agent adding a new subcommand can follow the same pattern without
- * touching shared scaffolding. See `parseArgs` for the dispatcher.
+ * (`parseDoctorArgs`, `parseFixArgs`, `parseWriteArgs`, `parseCheckArgs`)
+ * so a parallel agent adding a new subcommand can follow the same
+ * pattern without touching shared scaffolding. See `parseArgs` for
+ * the dispatcher.
  */
 
 const USAGE = `auto-geo — GEO publishing engine CLI
@@ -42,6 +46,8 @@ Usage:
   auto-geo fix <url>                   LLM-driven GEO rewrite of an existing page
   auto-geo write --domain <url> --query <q> [...]
                                        Generate resource pages from queries
+  auto-geo check --domain <d> --query <q> [...]
+                                       Measure if AI engines cite your domain
   auto-geo --help                      Show this message
 
 doctor flags:
@@ -86,6 +92,19 @@ write flags:
   --json                  Machine-readable summary
 
   Env: OPENAI_API_KEY (openai), ANTHROPIC_API_KEY (anthropic)
+
+check flags:
+  --domain <d>            Bare host (shadow.inc) or full origin. Required.
+  --query <text>          Target query (repeatable)
+  --queries-file <path>   Newline-separated file of queries
+  --engine <name>         perplexity (default), openai (stub)
+  --model <name>          Engine-specific model (default sonar for perplexity)
+  --concurrency N         Parallel queries (default 2)
+  --json                  Machine-readable output
+  --out <path>            Also write full report to this path
+
+  Env: PERPLEXITY_API_KEY (perplexity), OPENAI_API_KEY (openai)
+  Exit code: 0 if coverage > 0%, 1 if 0%.
 
 Docs: https://github.com/shadowresearch/auto-geo
 `;
@@ -139,6 +158,19 @@ export type FixArgs = {
   authorLinkedin?: string;
 };
 
+export type CheckArgs = {
+  command: "check";
+  domain?: string;
+  queries: string[];
+  queriesFile?: string;
+  engine: string;
+  model?: string;
+  out?: string;
+  concurrency?: number;
+  json: boolean;
+  color: boolean;
+};
+
 export type HelpArgs = {
   command: "help";
   // Carry the json + color flags so the help path is consistent with
@@ -147,7 +179,12 @@ export type HelpArgs = {
   color: boolean;
 };
 
-export type ParsedArgs = DoctorArgs | FixArgs | WriteArgs | HelpArgs;
+export type ParsedArgs =
+  | DoctorArgs
+  | FixArgs
+  | WriteArgs
+  | CheckArgs
+  | HelpArgs;
 
 // ── Dispatcher ────────────────────────────────────────────────────
 
@@ -160,6 +197,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const first = argv[0];
   if (first === "write") return parseWriteArgs(argv.slice(1));
   if (first === "fix") return parseFixArgs(argv.slice(1));
+  if (first === "check") return parseCheckArgs(argv.slice(1));
   if (first === "doctor") return parseDoctorArgs(argv.slice(1));
   // Bare `<url>` dispatches to doctor for v0.1.3 back-compat.
   return parseDoctorArgs(argv);
@@ -349,6 +387,50 @@ export function parseWriteArgs(argv: string[]): WriteArgs {
   return args;
 }
 
+// ── check subcommand ──────────────────────────────────────────────
+
+export function parseCheckArgs(argv: string[]): CheckArgs {
+  const args: CheckArgs = {
+    command: "check",
+    queries: [],
+    engine: "perplexity",
+    json: false,
+    color: true,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    const requireValue = (flag: string): string => {
+      const next = argv[++i];
+      if (next === undefined) throw new Error(`${flag} requires a value`);
+      return next;
+    };
+    if (a === "--json") args.json = true;
+    else if (a === "--no-color") args.color = false;
+    else if (a === "--domain") args.domain = requireValue("--domain");
+    else if (a === "--query") args.queries.push(requireValue("--query"));
+    else if (a === "--queries-file")
+      args.queriesFile = requireValue("--queries-file");
+    else if (a === "--engine") args.engine = requireValue("--engine");
+    else if (a === "--model") args.model = requireValue("--model");
+    else if (a === "--out") args.out = requireValue("--out");
+    else if (a === "--concurrency") {
+      const n = Number(requireValue("--concurrency"));
+      if (!Number.isFinite(n) || n <= 0)
+        throw new Error("--concurrency requires a positive number");
+      args.concurrency = n;
+    } else if (a.startsWith("--")) {
+      throw new Error(`unknown flag: ${a}`);
+    } else {
+      throw new Error(
+        `unexpected positional argument: ${a} (check uses --domain / --query)`
+      );
+    }
+  }
+
+  return args;
+}
+
 export function getUsage(): string {
   return USAGE;
 }
@@ -375,6 +457,7 @@ export async function run(argv: string[]): Promise<number> {
   if (parsed.command === "doctor") return runDoctorCommand(parsed);
   if (parsed.command === "fix") return runFixCommand(parsed);
   if (parsed.command === "write") return runWriteCommand(parsed);
+  if (parsed.command === "check") return runCheckCommand(parsed);
 
   // Exhaustive check.
   console.error(USAGE);
@@ -607,6 +690,107 @@ async function runWriteCommand(parsed: WriteArgs): Promise<number> {
     } else {
       console.error(
         `auto-geo write: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    return 1;
+  }
+}
+
+// ── check runner ──────────────────────────────────────────────────
+
+async function runCheckCommand(parsed: CheckArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+
+  if (!parsed.domain) {
+    console.error("auto-geo check: --domain is required\n");
+    console.error(USAGE);
+    return 2;
+  }
+
+  // Merge --query (repeatable) and --queries-file. File entries are
+  // appended after CLI entries so an explicit CLI query is the first
+  // one in the report — that's the more common interactive ordering.
+  const queries = [...parsed.queries];
+  if (parsed.queriesFile) {
+    try {
+      const raw = await readFile(parsed.queriesFile, "utf8");
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) queries.push(trimmed);
+      }
+    } catch (err) {
+      console.error(
+        `auto-geo check: failed to read --queries-file ${parsed.queriesFile} — ${err instanceof Error ? err.message : String(err)}`
+      );
+      return 2;
+    }
+  }
+
+  if (queries.length === 0) {
+    console.error(
+      "auto-geo check: at least one --query or --queries-file is required\n"
+    );
+    console.error(USAGE);
+    return 2;
+  }
+
+  const engineName = parsed.engine;
+  if (engineName === "all") {
+    // TODO: enable when openai engine is fully implemented
+    console.error(
+      "auto-geo check: --engine all is reserved for a future release once the OpenAI adapter ships. Use --engine perplexity for now."
+    );
+    return 2;
+  }
+  if (engineName !== "perplexity" && engineName !== "openai") {
+    console.error(
+      `auto-geo check: unknown --engine ${engineName}. Supported: perplexity, openai (stub).`
+    );
+    return 2;
+  }
+
+  try {
+    const engine = createEngine(engineName as EngineName, {
+      model: parsed.model,
+    });
+    const report = await runCheck({
+      domain: parsed.domain,
+      queries,
+      engine,
+      concurrency: parsed.concurrency,
+    });
+
+    const out = parsed.json
+      ? renderCheckJson(report)
+      : renderCheckHuman(report, { colors });
+    console.log(out);
+
+    if (parsed.out) {
+      try {
+        await writeFile(parsed.out, renderCheckJson(report), "utf8");
+      } catch (err) {
+        console.error(
+          `auto-geo check: warning — could not write --out ${parsed.out}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
+    return report.summary.coveragePct > 0 ? 0 : 1;
+  } catch (err) {
+    if (parsed.json) {
+      console.log(
+        JSON.stringify(
+          {
+            domain: parsed.domain,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(
+        `auto-geo check: ${err instanceof Error ? err.message : String(err)}`
       );
     }
     return 1;
