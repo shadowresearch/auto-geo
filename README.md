@@ -31,6 +31,7 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 - [Quickstart (production setup)](#quickstart-production-setup)
 - [Examples](#examples)
 - [`auto-geo doctor` — audit any page for citation readiness](#auto-geo-doctor--audit-any-page-for-citation-readiness)
+- [`auto-geo fix` — rewrite a page for citation readiness](#auto-geo-fix--rewrite-a-page-for-citation-readiness)
 - [`auto-geo write` — generate pages from queries](#auto-geo-write--generate-pages-from-queries)
 - [The publishing flow](#the-publishing-flow)
 - [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
@@ -385,6 +386,77 @@ Use cases:
 - **Dashboard integration** — `--json` returns a stable schema you can wire into Datadog, your internal admin, or your weekly GEO scorecard.
 
 See [`docs/doctor.md`](./docs/doctor.md) for the full check reference, JSON schema, and programmatic API (`runDoctor`, `runSitemapDoctor`, `auditHtml`).
+
+---
+
+## `auto-geo fix` — rewrite a page for citation readiness
+
+Where `auto-geo doctor` tells you what's wrong with a page, `auto-geo fix` produces a GEO-optimized rewrite that would pass all 8 doctor checks. The output is a typed `ResourcePublishPayload` validated against the same Zod schema your publish endpoint enforces, so it's ready to POST.
+
+```bash
+npx auto-geo@latest fix https://www.example.com/some-blog-post \
+  --out ./fixed.json \
+  --provider openai \
+  --model gpt-4o-mini
+```
+
+```text
+auto-geo fix — generate a GEO-optimized rewrite
+url:      https://www.example.com/some-blog-post
+fetched:  1,247 words
+
+Audit (before):
+✗ TL;DR present
+✗ Question-format H2 headings (2 of 6)
+✗ Article JSON-LD present
+✗ FAQPage JSON-LD present
+✓ Entity density (12.3/1k)
+✗ Image cadence (0/page)
+✓ Answer-first first paragraph
+✗ Self-link detected
+
+Score (before): 3 / 8
+
+Generating rewrite via openai gpt-4o-mini...
+
+Audit (projected for rewrite):
+✓ TL;DR present (52 words)
+✓ Question-format H2 headings (6 of 6)
+✓ Article JSON-LD (auto-emitted by ResourceArticle renderer)
+✓ FAQPage JSON-LD (auto-emitted)
+✓ Entity density (18.1/1k)
+✓ Image cadence (n/a — add via the publish endpoint)
+✓ Answer-first first paragraph
+✓ No self-link
+
+Score (projected): 8 / 8 — strong GEO posture
+
+→ ./fixed.json (validated by resourcePublishSchema)
+Total: ~$0.04 estimated · 12s elapsed
+
+Next steps:
+  1. Review ./fixed.json (especially TL;DR + FAQ — the citation-target chunks)
+  2. Publish to your endpoint
+  3. Re-audit: npx auto-geo doctor https://www.example.com/<new-slug>
+```
+
+The pipeline orchestrates fetch → audit → LLM generation → Zod validation → disk write. The LLM uses the [Vercel AI SDK's `generateObject`](https://sdk.vercel.ai/) with `resourcePublishSchema` as the typed-output target — so the model is constrained at the type-system level, not just by prose instructions. If the output still fails strict schema parsing, the Zod issues are fed back as a follow-up message and the call is retried (up to `--max-retries`, default 2).
+
+```bash
+# Anthropic instead of OpenAI:
+export ANTHROPIC_API_KEY=sk-ant-…
+npx auto-geo fix https://example.com/page --provider anthropic --model claude-sonnet-4-5
+
+# Dry-run: fetch + audit + cost estimate, skip the LLM call:
+npx auto-geo fix https://example.com/page --dry-run
+
+# JSON for CI / dashboards:
+npx auto-geo fix https://example.com/page --json
+```
+
+Two of the doctor checks — `article-jsonld` and `faqpage-jsonld` — pass automatically once the generated payload is published and rendered by `<ResourceArticle>`. `core/jsonld.ts` derives Article + BreadcrumbList + FAQPage + Person + ImageObject blocks from the structured fields, so the LLM doesn't need to generate any JSON-LD itself.
+
+See [`docs/fix.md`](./docs/fix.md) for the full flag reference, prompt template, cost model, and programmatic API (`runFix`).
 
 ---
 
