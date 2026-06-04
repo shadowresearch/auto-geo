@@ -12,7 +12,8 @@ import {
   renderWriteSummary,
   runWrite,
 } from "./write";
-import type { ProviderId } from "./llm";
+import { renderFixHuman, renderFixJson, runFix, type FixCliFlags } from "./fix";
+import type { LlmProvider, ProviderId } from "./llm";
 import type { ResourceAuthor } from "../core/schema";
 
 /**
@@ -23,12 +24,13 @@ import type { ResourceAuthor } from "../core/schema";
  *
  * Subcommand dispatch:
  *   - `auto-geo doctor <url>`   — audit a single URL or sitemap
+ *   - `auto-geo fix <url>`      — LLM-driven GEO rewrite of an existing page
  *   - `auto-geo write --domain` — generate resource pages from queries
  *   - bare `<url>` → doctor (back-compat with v0.1.3)
  *
  * Subcommands each parse their own flags in dedicated parsers
- * (`parseDoctorArgs`, `parseWriteArgs`) so a parallel agent adding a
- * `fix`/`check` subcommand can follow the same pattern without
+ * (`parseDoctorArgs`, `parseFixArgs`, `parseWriteArgs`) so a parallel
+ * agent adding a new subcommand can follow the same pattern without
  * touching shared scaffolding. See `parseArgs` for the dispatcher.
  */
 
@@ -37,6 +39,7 @@ const USAGE = `auto-geo — GEO publishing engine CLI
 Usage:
   auto-geo doctor <url>                Audit a page for citation readiness
   auto-geo doctor --site <sitemap>     Audit every URL in an XML sitemap
+  auto-geo fix <url>                   LLM-driven GEO rewrite of an existing page
   auto-geo write --domain <url> --query <q> [...]
                                        Generate resource pages from queries
   auto-geo --help                      Show this message
@@ -48,6 +51,22 @@ doctor flags:
   --concurrency N  Concurrent fetches in --site mode (default 5)
 
   Exit code: 0 if score ≥ 75%, 1 otherwise.
+
+fix flags:
+  --out <path>            Output file (default ./fixed.json)
+  --provider openai|anthropic    LLM provider (default openai)
+  --model <name>          Model (default gpt-4o-mini)
+  --max-retries N         Self-correction retries on schema fail (default 2)
+  --dry-run               Fetch + audit + estimate cost, skip LLM call
+  --json                  Emit machine-readable JSON
+  --basepath <path>       Publish base path for URL preview (default /resources)
+  --author-name <text>    Author name (propagated into payload)
+  --author-jobtitle <t>   Author job title
+  --author-bio <text>     Author bio (≥20 chars; required by the schema)
+  --author-linkedin <url> Author LinkedIn URL (optional)
+
+  Env: OPENAI_API_KEY (openai), ANTHROPIC_API_KEY (anthropic)
+  Exit code: 0 on success, 1 on failure.
 
 write flags:
   --domain <url>          Publisher domain (required)
@@ -103,6 +122,23 @@ export type WriteArgs = {
   color: boolean;
 };
 
+export type FixArgs = {
+  command: "fix";
+  url?: string;
+  out: string;
+  provider: LlmProvider;
+  model: string;
+  maxRetries: number;
+  dryRun: boolean;
+  json: boolean;
+  color: boolean;
+  basePath: string;
+  authorName?: string;
+  authorJobTitle?: string;
+  authorBio?: string;
+  authorLinkedin?: string;
+};
+
 export type HelpArgs = {
   command: "help";
   // Carry the json + color flags so the help path is consistent with
@@ -111,7 +147,7 @@ export type HelpArgs = {
   color: boolean;
 };
 
-export type ParsedArgs = DoctorArgs | WriteArgs | HelpArgs;
+export type ParsedArgs = DoctorArgs | FixArgs | WriteArgs | HelpArgs;
 
 // ── Dispatcher ────────────────────────────────────────────────────
 
@@ -123,6 +159,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   const first = argv[0];
   if (first === "write") return parseWriteArgs(argv.slice(1));
+  if (first === "fix") return parseFixArgs(argv.slice(1));
   if (first === "doctor") return parseDoctorArgs(argv.slice(1));
   // Bare `<url>` dispatches to doctor for v0.1.3 back-compat.
   return parseDoctorArgs(argv);
@@ -158,6 +195,70 @@ export function parseDoctorArgs(argv: string[]): DoctorArgs {
       if (!Number.isFinite(n) || n <= 0)
         throw new Error("--concurrency requires a positive number");
       args.concurrency = n;
+    } else if (a.startsWith("--")) {
+      throw new Error(`unknown flag: ${a}`);
+    } else {
+      positionals.push(a);
+    }
+  }
+
+  if (positionals.length > 1) {
+    throw new Error(
+      `unexpected positional arguments: ${positionals.slice(1).join(" ")}`
+    );
+  }
+  args.url = positionals[0];
+
+  return args;
+}
+
+// ── fix subcommand ────────────────────────────────────────────────
+
+export function parseFixArgs(argv: string[]): FixArgs {
+  const args: FixArgs = {
+    command: "fix",
+    out: "./fixed.json",
+    provider: "openai",
+    model: "gpt-4o-mini",
+    maxRetries: 2,
+    dryRun: false,
+    json: false,
+    color: true,
+    basePath: "/resources",
+  };
+
+  const positionals: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    const requireValue = (flag: string): string => {
+      const next = argv[++i];
+      if (next === undefined) throw new Error(`${flag} requires a value`);
+      return next;
+    };
+    if (a === "--json") args.json = true;
+    else if (a === "--no-color") args.color = false;
+    else if (a === "--dry-run") args.dryRun = true;
+    else if (a === "--out") args.out = requireValue("--out");
+    else if (a === "--provider") {
+      const v = requireValue("--provider");
+      if (v !== "openai" && v !== "anthropic")
+        throw new Error(`--provider must be openai or anthropic; got "${v}"`);
+      args.provider = v;
+    } else if (a === "--model") args.model = requireValue("--model");
+    else if (a === "--basepath") args.basePath = requireValue("--basepath");
+    else if (a === "--author-name")
+      args.authorName = requireValue("--author-name");
+    else if (a === "--author-jobtitle")
+      args.authorJobTitle = requireValue("--author-jobtitle");
+    else if (a === "--author-bio")
+      args.authorBio = requireValue("--author-bio");
+    else if (a === "--author-linkedin")
+      args.authorLinkedin = requireValue("--author-linkedin");
+    else if (a === "--max-retries") {
+      const n = Number(requireValue("--max-retries"));
+      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n))
+        throw new Error("--max-retries requires a non-negative integer");
+      args.maxRetries = n;
     } else if (a.startsWith("--")) {
       throw new Error(`unknown flag: ${a}`);
     } else {
@@ -272,6 +373,7 @@ export async function run(argv: string[]): Promise<number> {
     return 0;
   }
   if (parsed.command === "doctor") return runDoctorCommand(parsed);
+  if (parsed.command === "fix") return runFixCommand(parsed);
   if (parsed.command === "write") return runWriteCommand(parsed);
 
   // Exhaustive check.
@@ -346,6 +448,60 @@ async function runSiteMode(parsed: DoctorArgs): Promise<number> {
         `auto-geo: failed to audit sitemap ${parsed.site} — ${
           err instanceof Error ? err.message : String(err)
         }`
+      );
+    }
+    return 1;
+  }
+}
+
+// ── fix runner ────────────────────────────────────────────────────
+
+async function runFixCommand(parsed: FixArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+
+  if (!parsed.url) {
+    console.error("auto-geo fix: missing URL argument\n");
+    console.error(USAGE);
+    return 2;
+  }
+
+  const flags: FixCliFlags = {
+    url: parsed.url,
+    out: parsed.out,
+    provider: parsed.provider,
+    model: parsed.model,
+    maxRetries: parsed.maxRetries,
+    dryRun: parsed.dryRun,
+    json: parsed.json,
+    basePath: parsed.basePath,
+    authorName: parsed.authorName,
+    authorJobTitle: parsed.authorJobTitle,
+    authorBio: parsed.authorBio,
+    authorLinkedin: parsed.authorLinkedin,
+  };
+
+  try {
+    const outcome = await runFix(flags);
+    const out = parsed.json
+      ? renderFixJson(outcome)
+      : renderFixHuman(outcome, { colors });
+    console.log(out);
+    return 0;
+  } catch (err) {
+    if (parsed.json) {
+      console.log(
+        JSON.stringify(
+          {
+            url: parsed.url,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(
+        `auto-geo fix: ${err instanceof Error ? err.message : String(err)}`
       );
     }
     return 1;

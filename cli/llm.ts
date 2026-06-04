@@ -40,6 +40,14 @@ import {
 
 export type ProviderId = "openai" | "anthropic";
 
+/**
+ * Alias retained for `cli/fix.ts` and the v0.1.3-era CLI surface that
+ * referred to the provider type as `LlmProvider`. New code should use
+ * `ProviderId`; the alias is kept so the public type surface stays
+ * additive across the `fix` + `write` merge.
+ */
+export type LlmProvider = ProviderId;
+
 export type GenerateResourceUsage = {
   inputTokens: number;
   outputTokens: number;
@@ -69,6 +77,27 @@ export type GenerateResourceOptions = {
   maxRetries?: number;
   /** Optional system-prompt override — exported mainly for tests + docs. */
   systemPrompt?: string;
+  /**
+   * Optional source-page plain text. The `fix` subcommand populates this
+   * with the original page's prose so the model can rewrite-with-context
+   * rather than draft greenfield. Truncated to `sourceTextMaxChars`
+   * before being embedded in the prompt to bound input cost.
+   */
+  sourceText?: string;
+  /** Optional source-page URL — included verbatim in the user prompt. */
+  sourceUrl?: string;
+  /**
+   * Optional doctor report digest — the "before" audit, included so the
+   * model knows which checks failed on the source page and why. `fix`
+   * populates this; `write` leaves it undefined.
+   */
+  doctorReport?: string;
+  /**
+   * Truncate source-page text to this many characters before embedding
+   * in the user prompt. Default: 24,000 (~6k tokens). Only used when
+   * `sourceText` is provided.
+   */
+  sourceTextMaxChars?: number;
 };
 
 export type GenerateResourceResult = {
@@ -76,6 +105,14 @@ export type GenerateResourceResult = {
   usage: GenerateResourceUsage;
   /** Number of self-correction retries that were needed (0 = first try). */
   retries: number;
+  /**
+   * Total attempts made (1 on first-try success; retries + 1 on later
+   * success). Surfaced for the `fix` CLI's "self-correction fired"
+   * line so users see how many LLM calls were billed.
+   */
+  attempts: number;
+  /** Elapsed wall time in milliseconds. */
+  elapsedMs: number;
 };
 
 // ── Prompt template ───────────────────────────────────────────────
@@ -142,31 +179,106 @@ export function buildUserPrompt(opts: {
   slug: string;
   author: ResourceAuthor;
   publishedAt: string;
+  /** Source-page URL (fix-mode only). */
+  sourceUrl?: string;
+  /** Source-page plain text (fix-mode only). */
+  sourceText?: string;
+  /** Doctor-report digest of the source page (fix-mode only). */
+  doctorReport?: string;
+  /** Cap on `sourceText` characters embedded in the prompt. */
+  sourceTextMaxChars?: number;
 }): string {
   const internalLink = `${stripTrailingSlash(opts.domain)}${ensureLeadingSlash(opts.basePath)}/<related-slug>`;
-  return `Draft a GEO resource page for the publisher at ${opts.domain}.
+  const rewriteMode = Boolean(
+    opts.sourceText || opts.sourceUrl || opts.doctorReport
+  );
 
-Target query: ${JSON.stringify(opts.query)}
-Slug (use exactly): ${JSON.stringify(opts.slug)}
-publishedAt (use exactly): ${JSON.stringify(opts.publishedAt)}
-Internal relatedGuides URLs should be on the publisher's domain, shaped like:
-  ${internalLink}
-External relatedGuides URLs should cite authoritative non-self sources.
+  const verb = rewriteMode ? "Rewrite the source page below as" : "Draft";
+  const lines: string[] = [];
+  lines.push(
+    `${verb} a GEO resource page for the publisher at ${opts.domain}.`
+  );
+  lines.push("");
+  lines.push(`Target query: ${JSON.stringify(opts.query)}`);
+  lines.push(`Slug (use exactly): ${JSON.stringify(opts.slug)}`);
+  lines.push(`publishedAt (use exactly): ${JSON.stringify(opts.publishedAt)}`);
+  lines.push(
+    "Internal relatedGuides URLs should be on the publisher's domain, shaped like:"
+  );
+  lines.push(`  ${internalLink}`);
+  lines.push(
+    "External relatedGuides URLs should cite authoritative non-self sources."
+  );
+  lines.push("");
+  lines.push("Author (use exactly):");
+  lines.push(JSON.stringify(opts.author, null, 2));
 
-Author (use exactly):
-${JSON.stringify(opts.author, null, 2)}
+  if (opts.sourceUrl) {
+    lines.push("");
+    lines.push(`Source URL: ${opts.sourceUrl}`);
+  }
+  if (opts.doctorReport) {
+    lines.push("");
+    lines.push("Audit report for the source page (this is what's wrong now):");
+    lines.push(opts.doctorReport);
+  }
+  if (opts.sourceText) {
+    const max = opts.sourceTextMaxChars ?? DEFAULT_SOURCE_TEXT_MAX_CHARS;
+    const text = truncateText(opts.sourceText, max);
+    lines.push("");
+    lines.push(
+      "Source page text (preserve substantive claims; restructure for citation extraction):"
+    );
+    lines.push("```");
+    lines.push(text);
+    lines.push("```");
+  }
 
-Constraints:
-- The H1/title MUST be the target query phrased as a question.
-- The TL;DR MUST directly answer the target query in 40-60 words.
-- All H2 headings MUST end in "?".
-- Every H2's answerCapsule MUST be 40-60 words and self-contained.
-- Every FAQ answer MUST be 40-60 words.
-- 4-8 relatedGuides items (mix internal + external).
-- 4-6 keyTakeaways items, each 10-35 words.
-- 3-10 FAQ items.
-- pageType "resource"; optimizationFramework includes "GEO"; targetPlatforms covers chatgpt + perplexity + google_aio at minimum.
-- refreshCadence "quarterly".`;
+  lines.push("");
+  lines.push("Constraints:");
+  lines.push("- The H1/title MUST be the target query phrased as a question.");
+  lines.push(
+    "- The TL;DR MUST directly answer the target query in 40-60 words."
+  );
+  lines.push('- All H2 headings MUST end in "?".');
+  lines.push(
+    "- Every H2's answerCapsule MUST be 40-60 words and self-contained."
+  );
+  lines.push("- Every FAQ answer MUST be 40-60 words.");
+  lines.push("- 4-8 relatedGuides items (mix internal + external).");
+  lines.push("- 4-6 keyTakeaways items, each 10-35 words.");
+  lines.push("- 3-10 FAQ items.");
+  lines.push(
+    '- pageType "resource"; optimizationFramework includes "GEO"; targetPlatforms covers chatgpt + perplexity + google_aio at minimum.'
+  );
+  lines.push('- refreshCadence "quarterly".');
+  if (rewriteMode) {
+    lines.push(
+      "- The rewrite must pass all 8 doctor checks (TL;DR present, question-format H2s, Article + FAQPage JSON-LD, entity density, image cadence, answer-first first paragraph, no self-link)."
+    );
+    lines.push(
+      "- Preserve the source author's substantive claims, facts, and statistics — do not invent facts."
+    );
+  }
+
+  return lines.join("\n");
+}
+
+const DEFAULT_SOURCE_TEXT_MAX_CHARS = 24_000;
+
+/**
+ * Truncate text by character count, keeping a balanced head + tail
+ * window. A head-only truncate would lose closing material like a
+ * trailing FAQ block; an even head+tail split keeps the LLM aware of
+ * both ends of the source page.
+ */
+function truncateText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const headChars = Math.floor(maxChars * 0.7);
+  const tailChars = maxChars - headChars - 24; // 24 ≈ separator length
+  const head = text.slice(0, headChars).trimEnd();
+  const tail = text.slice(-tailChars).trimStart();
+  return `${head}\n\n[…truncated for context window…]\n\n${tail}`;
 }
 
 // ── Generator ─────────────────────────────────────────────────────
@@ -179,6 +291,7 @@ Constraints:
 export async function generateResourcePayload(
   opts: GenerateResourceOptions
 ): Promise<GenerateResourceResult> {
+  const startedAt = Date.now();
   const maxRetries = opts.maxRetries ?? 2;
   const system = opts.systemPrompt ?? SYSTEM_PROMPT;
   const baseUserPrompt = buildUserPrompt({
@@ -188,6 +301,10 @@ export async function generateResourcePayload(
     slug: opts.slug,
     author: opts.author,
     publishedAt: opts.publishedAt,
+    sourceUrl: opts.sourceUrl,
+    sourceText: opts.sourceText,
+    doctorReport: opts.doctorReport,
+    sourceTextMaxChars: opts.sourceTextMaxChars,
   });
 
   let totalInput = 0;
@@ -260,6 +377,8 @@ ${formatIssues(lastIssues)}`;
           totalTokens: totalTotal,
         },
         retries: attempt,
+        attempts: attempt + 1,
+        elapsedMs: Date.now() - startedAt,
       };
     }
 
@@ -311,4 +430,85 @@ function stripTrailingSlash(s: string): string {
 function ensureLeadingSlash(s: string): string {
   if (!s) return "/";
   return s.startsWith("/") ? s : `/${s}`;
+}
+
+// ── Cost estimator (used by `auto-geo fix` for pre-call posture) ──
+
+/**
+ * Per-1k-token prices (USD) for a small set of well-known models.
+ * Used only for the pre-generation cost estimate the CLI prints — the
+ * actual cost is whatever the provider bills. The authoritative cost
+ * table for `auto-geo write` lives in `cli/cost.ts`; this minimal
+ * inline table exists so `cli/fix.ts` can render a single estimate
+ * before the LLM call without dragging in the cost module.
+ */
+const FIX_COST_TABLE: Record<
+  string,
+  { inputPer1k: number; outputPer1k: number }
+> = {
+  "gpt-4o-mini": { inputPer1k: 0.00015, outputPer1k: 0.0006 },
+  "gpt-4o": { inputPer1k: 0.0025, outputPer1k: 0.01 },
+  "gpt-4.1-mini": { inputPer1k: 0.0004, outputPer1k: 0.0016 },
+  "gpt-4.1": { inputPer1k: 0.002, outputPer1k: 0.008 },
+  "claude-3-5-haiku-latest": { inputPer1k: 0.0008, outputPer1k: 0.004 },
+  "claude-3-5-sonnet-latest": { inputPer1k: 0.003, outputPer1k: 0.015 },
+  "claude-haiku-4-5": { inputPer1k: 0.001, outputPer1k: 0.005 },
+  "claude-sonnet-4-5": { inputPer1k: 0.003, outputPer1k: 0.015 },
+  "claude-sonnet-4-6": { inputPer1k: 0.003, outputPer1k: 0.015 },
+  "claude-opus-4-5": { inputPer1k: 0.015, outputPer1k: 0.075 },
+};
+
+const FIX_DEFAULT_COST = { inputPer1k: 0.001, outputPer1k: 0.005 };
+
+/**
+ * Very rough USD estimate for one generation call. Counts ~4 chars/token
+ * for input and assumes ~2k output tokens for a typical resource payload.
+ *
+ * Intended for the "Total: ~$0.04 estimated" footer — not accounting.
+ * The `write` CLI uses the canonical per-usage cost table in `cli/cost.ts`.
+ */
+export function estimateGenerationCostUsd(args: {
+  model: string;
+  inputChars: number;
+  /** Output token estimate. Defaults to 2,000 — a typical full payload. */
+  outputTokens?: number;
+}): number {
+  const inputTokens = Math.ceil(args.inputChars / 4);
+  const outputTokens = args.outputTokens ?? 2_000;
+  const rate = FIX_COST_TABLE[args.model] ?? FIX_DEFAULT_COST;
+  return (
+    (inputTokens / 1_000) * rate.inputPer1k +
+    (outputTokens / 1_000) * rate.outputPer1k
+  );
+}
+
+// ── Model resolver (used by `auto-geo fix`) ──────────────────────
+
+/**
+ * Resolve a `LanguageModel` from `(provider, modelName, apiKey)`.
+ * Async + dynamic-import so the AI SDK provider packages aren't loaded
+ * until the user actually invokes a subcommand that hits a provider —
+ * keeping `auto-geo doctor` startup fast.
+ *
+ * `auto-geo write` resolves the model in `cli/run.ts` for the same
+ * reason; this helper exists so `cli/fix.ts` (which has its own
+ * orchestrator entry point that accepts an `apiKey` flag) can share the
+ * exact same resolver wiring.
+ */
+export async function getLanguageModel(
+  provider: ProviderId,
+  modelName: string,
+  apiKey: string
+) {
+  if (provider === "openai") {
+    const { createOpenAI } = await import("@ai-sdk/openai");
+    return createOpenAI({ apiKey })(modelName);
+  }
+  if (provider === "anthropic") {
+    const { createAnthropic } = await import("@ai-sdk/anthropic");
+    return createAnthropic({ apiKey })(modelName);
+  }
+  throw new Error(
+    `unknown provider "${String(provider)}"; expected "openai" or "anthropic"`
+  );
 }

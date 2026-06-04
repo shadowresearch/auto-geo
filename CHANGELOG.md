@@ -8,6 +8,11 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+### Added
+
+- **`auto-geo fix` CLI** — new `npx auto-geo fix <url>` command generates a GEO-optimized rewrite of any public webpage via the Vercel AI SDK (`generateObject` against `resourcePublishSchema` as the typed-output target). Orchestrates fetch → doctor audit → LLM generation → Zod validation → disk write. The doctor report and source page text are passed in as the LLM context so the rewrite specifically targets the failing checks. Supports `--provider openai|anthropic`, `--model <name>`, `--max-retries N`, `--dry-run`, `--json`, `--basepath`, and `--author-*` flags. Reads `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` from env. Self-correction loop feeds Zod issues back to the model on schema-parse failure. Article + FAQPage JSON-LD checks pass by construction once the payload is published — the renderer auto-emits them. New runtime deps: `ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`. 30 new tests; 220 total.
+- `docs/fix.md` reference docs (prompt template, cost model, troubleshooting, programmatic API).
+
 ## [0.1.3] — 2026-06-03
 
 ### Added
