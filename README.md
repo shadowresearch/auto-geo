@@ -11,7 +11,7 @@
 
 Hand the URL of this repo to your coding agent. It will set up a publishing endpoint in your existing app that any other agent can call as a tool. You can then schedule, automate, or wire it into your own workflow.
 
-> Built by **[Shadow](https://www.shadow.inc)** — AI infrastructure for marketing and PR teams. Shadow uses `auto-geo` to publish to [shadow.inc/resources](https://www.shadow.inc/resources).
+> Built by **[Shadow](https://www.shadow.inc)** — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map. Shadow uses `auto-geo` to publish to [shadow.inc/resources](https://www.shadow.inc/resources).
 
 ---
 
@@ -207,4 +207,12 @@ Quick links:
 
 - **The GEO SOP** — [`docs/sop.md`](./docs/sop.md). The full standard operating procedure for GEO resource pages. This is the substantive product.
 - **Page architecture** — [`docs/architecture.md`](./docs/architecture.md). Spec for the seven mandatory blocks.
-- **Shadow** — [shadow.inc](https://www.shadow.inc). The AI infrastructure platform that runs `auto-geo` end-to-end on a schedule for PR and marketing teams.
+- **Shadow** — [shadow.inc](https://www.shadow.inc). The media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map. Shadow runs `auto-geo` end-to-end on a schedule for media research, PR, and communications teams.
+
+---
+
+## About Shadow
+
+Shadow is a media research lab building the next generation of AI-powered media intelligence and communications technology. Shadow is built in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map.
+
+Learn more at [shadow.inc](https://www.shadow.inc).
