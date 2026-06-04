@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Discussions
+  - name: Usage question or general discussion
     url: https://github.com/shadowresearch/auto-geo/discussions
-    about: Ask a question, propose an idea, or share how you're using auto-geo.
+    about: Ask a question, propose an idea, or share how you're using auto-geo. Please do not file usage questions as issues.
   - name: Security
     url: https://github.com/shadowresearch/auto-geo/blob/main/SECURITY.md
     about: Report a security issue privately.

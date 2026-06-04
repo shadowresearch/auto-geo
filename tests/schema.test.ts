@@ -361,6 +361,173 @@ describe("resourcePublishSchema", () => {
       expect(result.success).toBe(false);
     });
   });
+
+  // The error messages below are asserted explicitly because they are
+  // load-bearing for first-time integrator DX: each one names the field
+  // it failed on and gives a concrete example of a passing value, so a
+  // dev can fix the payload without grepping the schema source.
+  describe("user-friendly error messages", () => {
+    function messageFor(
+      issues: { path: (string | number)[]; message: string }[],
+      path: string
+    ): string | undefined {
+      return issues.find((i) => i.path.join(".") === path)?.message;
+    }
+
+    it("includes 'author.linkedinUrl' and a LinkedIn URL example", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        author: { ...VALID_PAYLOAD.author, linkedinUrl: "not-a-url" },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "author.linkedinUrl");
+        expect(msg).toMatch(/author\.linkedinUrl/);
+        expect(msg).toMatch(/linkedin\.com/);
+      }
+    });
+
+    it("names author.bio and explains the minimum length", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        author: { ...VALID_PAYLOAD.author, bio: "too short" },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "author.bio");
+        expect(msg).toMatch(/author\.bio/);
+        expect(msg).toMatch(/20 characters/);
+      }
+    });
+
+    it("names author.name when empty", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        author: { ...VALID_PAYLOAD.author, name: "" },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "author.name");
+        expect(msg).toMatch(/author\.name/);
+        expect(msg).toMatch(/Jane Doe|required/);
+      }
+    });
+
+    it("names author.jobTitle when empty", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        author: { ...VALID_PAYLOAD.author, jobTitle: "" },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "author.jobTitle");
+        expect(msg).toMatch(/author\.jobTitle/);
+      }
+    });
+
+    it("names metaDescription and explains the 50-char floor", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        metaDescription: "too short",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "metaDescription");
+        expect(msg).toMatch(/metaDescription/);
+        expect(msg).toMatch(/50/);
+      }
+    });
+
+    it("names metaDescription and explains the 180-char ceiling", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        metaDescription: "x".repeat(181),
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "metaDescription");
+        expect(msg).toMatch(/metaDescription/);
+        expect(msg).toMatch(/180/);
+      }
+    });
+
+    it("names excerpt and explains the minimum length", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        excerpt: "too short",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "excerpt");
+        expect(msg).toMatch(/excerpt/);
+        expect(msg).toMatch(/50 characters/);
+      }
+    });
+
+    it("names category when empty", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        category: "",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "category");
+        expect(msg).toMatch(/category/);
+      }
+    });
+
+    it("names title when empty", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        title: "",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "title");
+        expect(msg).toMatch(/title/);
+      }
+    });
+
+    it("publishedAt error includes a yyyy-mm-dd example", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        publishedAt: "June 1, 2026",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "publishedAt");
+        expect(msg).toMatch(/publishedAt/);
+        expect(msg).toMatch(/yyyy-mm-dd/);
+        expect(msg).toMatch(/2026-06-01/);
+      }
+    });
+
+    it("citation url error includes an example URL", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        citations: [{ url: "not-a-url" }],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "citations.0.url");
+        expect(msg).toMatch(/Citation url/);
+        expect(msg).toMatch(/schema\.org/);
+      }
+    });
+
+    it("entity url error includes a full-URL example", () => {
+      const result = resourcePublishSchema.safeParse({
+        ...VALID_PAYLOAD,
+        about: [{ name: "OpenAI", url: "openai.com" }],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const msg = messageFor(result.error.issues, "about.0.url");
+        expect(msg).toMatch(/Entity url/);
+        expect(msg).toMatch(/https:\/\//);
+      }
+    });
+  });
 });
 
 describe("wordCount", () => {

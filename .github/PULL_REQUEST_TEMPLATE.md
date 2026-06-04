@@ -2,9 +2,9 @@
 
 <!-- One or two sentences describing the change and why. -->
 
-## Changes
+## Test plan
 
-<!-- Bullet list of what changed. Focus on user-visible behavior, not internal refactoring. -->
+<!-- How did you verify the change? Bullet list of manual checks, new test cases, or commands run. -->
 
 -
 -
@@ -15,9 +15,10 @@
 
 ## Checklist
 
-- [ ] Tests added or updated; `pnpm test` passes locally.
-- [ ] `pnpm typecheck` passes.
+- [ ] Tests added or updated.
+- [ ] `pnpm test` passes locally.
 - [ ] `pnpm lint` passes with zero warnings.
+- [ ] `pnpm typecheck` passes.
 - [ ] `pnpm format:check` passes.
 - [ ] `CHANGELOG.md` updated under `## [Unreleased]`.
 - [ ] If schema changed: `docs/sop.md` updated with rationale.

@@ -5,14 +5,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. Please fill in the sections below so we can reproduce and triage quickly. For security issues, use SECURITY.md instead.
+        Thanks for reporting a bug. Please fill in every section so we can reproduce and triage quickly. For security issues, use [SECURITY.md](https://github.com/shadowresearch/auto-geo/blob/main/SECURITY.md) instead — do not file a public issue.
 
   - type: input
     id: version
     attributes:
       label: auto-geo version
-      description: From your package.json or pnpm-lock.yaml
-      placeholder: "0.1.0"
+      description: From your `package.json` or `pnpm-lock.yaml`.
+      placeholder: "0.1.1"
     validations:
       required: true
 
@@ -32,10 +32,28 @@ body:
       required: true
 
   - type: input
-    id: node-version
+    id: runtime-version
     attributes:
       label: Runtime version
+      description: e.g. `Node 22.5.1`, `Bun 1.2.0`, `Deno 2.0.0`.
       placeholder: "Node 22.5.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Framework / HTTP adapter
+      multiple: false
+      options:
+        - Next.js (App Router)
+        - Next.js (Pages Router)
+        - Hono
+        - Express
+        - Fastify
+        - Elysia
+        - Direct `runPublish` call (no adapter)
+        - Other (specify in description)
     validations:
       required: true
 
@@ -61,9 +79,18 @@ body:
   - type: textarea
     id: reproduction
     attributes:
-      label: Minimal reproduction
-      description: A payload, code snippet, or curl command that triggers the bug. The smaller the better.
+      label: Reproduction steps
+      description: A payload, code snippet, or curl command that triggers the bug. The smaller the better — minimal repros get fixed first.
       render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-output
+    attributes:
+      label: Error output
+      description: Paste the full error message, stack trace, or unexpected response body. Rendered as a code block.
+      render: shell
     validations:
       required: true
 
@@ -71,6 +98,7 @@ body:
     id: expected
     attributes:
       label: Expected behavior
+      description: What you expected to happen.
     validations:
       required: true
 
@@ -78,7 +106,7 @@ body:
     id: actual
     attributes:
       label: Actual behavior
-      description: Include the error message, stack trace, or unexpected output.
+      description: What actually happened.
     validations:
       required: true
 
@@ -86,4 +114,4 @@ body:
     id: context
     attributes:
       label: Additional context
-      description: Anything else that might help — related issues, workarounds you tried, etc.
+      description: Anything else that might help — related issues, workarounds you tried, links to a public repro repo.

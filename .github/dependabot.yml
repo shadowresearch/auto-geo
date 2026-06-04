@@ -1,37 +1,45 @@
 version: 2
 updates:
+  # Root package — runtime + dev deps, grouped by type so one PR lands per
+  # category instead of one PR per package.
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      production-dependencies:
+        dependency-type: production
       dev-dependencies:
         dependency-type: development
-      types:
-        patterns:
-          - "@types/*"
     labels:
       - dependencies
     commit-message:
       prefix: chore
       include: scope
 
+  # MCP workspace — same grouping convention.
   - package-ecosystem: npm
     directory: "/mcp"
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    groups:
+      production-dependencies:
+        dependency-type: production
+      dev-dependencies:
+        dependency-type: development
     labels:
       - dependencies
       - mcp
     commit-message:
       prefix: chore(mcp)
 
+  # GitHub Actions — lower churn, monthly cadence is plenty.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     labels:
       - dependencies
       - github-actions

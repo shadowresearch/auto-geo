@@ -8,6 +8,21 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+### Changed
+
+- **Schema error messages** in `core/schema.ts` are now field-qualified and include concrete passing examples (e.g. `author.linkedinUrl must be a full URL like 'https://www.linkedin.com/in/jane-doe' or omitted.`). Covers `author.*`, top-level `title` / `metaTitle` / `metaDescription` / `category` / `excerpt`, `publishedAt` / `modifiedAt`, `entityRef.url`, and `citation.url`. No schema semantics changed — only the error strings.
+
+### Added
+
+- README `Install` section with side-by-side `npm` / `pnpm` / `yarn` commands and a pnpm-workspace gotcha callout.
+- README `60-second quickstart` showing a fully runnable `runPublish` + `createMemoryStore` example, with a minimal payload that satisfies every required field.
+- README `Why auto-geo` section answering "Why not Markdown?", "Why not a CMS?", "Why isn't this just SEO?" in question-format headings.
+- README header badges: bundle size, monthly downloads, TypeScript, supported Node range.
+- `CONTRIBUTING.md` project-layout map, branch-protection workflow note, and explicit pointer to `adapters/storage/memory.ts` as the reference for new storage adapters.
+- Issue templates expanded: bug report adds a framework dropdown and dedicated error-output textarea; feature request adds a willingness-to-PR dropdown.
+- `dependabot.yml` now groups production and dev dependencies separately and runs GitHub Actions monthly instead of weekly.
+- Test coverage for the new user-facing schema error messages (`tests/schema.test.ts`).
+
 ## [0.1.0] — 2026-06-02
 
 Initial public release.
