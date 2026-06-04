@@ -90,6 +90,23 @@ describe("checkTldrPresent", () => {
     expect(result.detail).toMatch(/4[5-9]|5[0-5] words/);
   });
 
+  it("finds the TL;DR even when the label has no separator before the body (linkedom textContent join)", () => {
+    // `<p>TL;DR</p><p>Generative…</p>` concatenates under linkedom's
+    // textContent as `"TL;DRGenerative…"` — no whitespace at the
+    // element boundary. The label-search must still anchor on the
+    // first occurrence (the real TL;DR) rather than fall through to a
+    // later mid-prose mention of "TL;DR".
+    const realTldr =
+      "Generative Engine Optimization is the practice of structuring web content so AI engines extract and cite it inside answers. Where SEO optimizes for ranked links, GEO optimizes for inclusion inside a synthesized answer. The mechanics are concrete: answer-first prose and dense entities.";
+    const laterMention =
+      "the TL;DR is what ChatGPT and Perplexity tend to lift verbatim when summarizing the page.";
+    // No separator between "TL;DR" and the body (paragraph join).
+    const text = `TL;DR${realTldr} more content here. Section heading? ${laterMention}`;
+    const result = checkTldrPresent(makePage({ text }));
+    expect(result.pass).toBe(true);
+    expect(result.detail).toMatch(/4[0-9]|5[0-9]|60 words/);
+  });
+
   it("recovers TL;DR sentence boundaries when paragraphs concatenate without whitespace", () => {
     // linkedom's textContent joins `</p><p>` boundaries without
     // inserting a space, so a real rendered TL;DR can look like
