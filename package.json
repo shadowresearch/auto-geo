@@ -21,6 +21,8 @@
     "structured-content",
     "publishing",
     "next.js",
+    "hono",
+    "cloudflare-workers",
     "mcp",
     "shadow"
   ],
@@ -59,6 +61,11 @@
       "types": "./dist/hono.d.ts",
       "import": "./dist/hono.js",
       "require": "./dist/hono.cjs"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare.d.ts",
+      "import": "./dist/cloudflare.js",
+      "require": "./dist/cloudflare.cjs"
     },
     "./storage/kv": {
       "types": "./dist/storage/kv.d.ts",

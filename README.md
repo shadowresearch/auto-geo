@@ -225,17 +225,17 @@ That's it — no database, no auth setup, no framework. Once you've seen `Publis
 
 ## What's in this repo
 
-| Path                                      | What it is                                                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [`AGENT.md`](./AGENT.md)                  | The canonical setup spec. Hand this to your coding agent.                                                          |
-| [`core/`](./core)                         | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps.          |
-| [`adapters/storage/`](./adapters/storage) | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface.    |
-| [`adapters/http/`](./adapters/http)       | HTTP adapters — Next.js App Router, Hono. Wrap `core/publish` as a request handler.                                |
-| [`components/react/`](./components/react) | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`.                                |
-| [`mcp/`](./mcp)                           | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish. |
-| [`examples/`](./examples)                 | Working example apps for Next.js, Hono on Bun, Express, SvelteKit, and Fastify. See [Examples](#examples).         |
-| [`docs/`](./docs)                         | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide.         |
-| [`tests/`](./tests)                       | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser.              |
+| Path                                      | What it is                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [`AGENT.md`](./AGENT.md)                  | The canonical setup spec. Hand this to your coding agent.                                                                      |
+| [`core/`](./core)                         | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps.                      |
+| [`adapters/storage/`](./adapters/storage) | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface.                |
+| [`adapters/http/`](./adapters/http)       | HTTP adapters — Next.js App Router, Hono, Cloudflare Workers. Wrap `core/publish` as a request handler.                        |
+| [`components/react/`](./components/react) | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`.                                            |
+| [`mcp/`](./mcp)                           | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish.             |
+| [`examples/`](./examples)                 | Working example apps for Next.js, Hono on Bun, Cloudflare Workers, Express, SvelteKit, and Fastify. See [Examples](#examples). |
+| [`docs/`](./docs)                         | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide.                     |
+| [`tests/`](./tests)                       | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser.                          |
 
 ---
 
@@ -300,13 +300,14 @@ boots locally with `pnpm install` + the framework's dev script, ships
 with an in-memory store seeded with one valid payload, and is tested
 end to end against `auto-geo@0.1.1` from npm.
 
-| Framework            | Path                                             | Storage | Notes                                        |
-| -------------------- | ------------------------------------------------ | ------- | -------------------------------------------- |
-| Next.js (App Router) | [examples/next-minimal](./examples/next-minimal) | memory  | Full render + publish                        |
-| Hono (Bun)           | [examples/hono-bun](./examples/hono-bun)         | memory  | Endpoint only — uses `auto-geo/hono`         |
-| Express              | [examples/express](./examples/express)           | memory  | Endpoint only — `runPublish` inline          |
-| SvelteKit            | [examples/sveltekit](./examples/sveltekit)       | memory  | Endpoint only — `runPublish` in `+server.ts` |
-| Fastify              | [examples/fastify](./examples/fastify)           | memory  | Endpoint only — `runPublish` inline          |
+| Framework            | Path                                                         | Storage | Notes                                        |
+| -------------------- | ------------------------------------------------------------ | ------- | -------------------------------------------- |
+| Next.js (App Router) | [examples/next-minimal](./examples/next-minimal)             | memory  | Full render + publish                        |
+| Hono (Bun)           | [examples/hono-bun](./examples/hono-bun)                     | memory  | Endpoint only — uses `auto-geo/hono`         |
+| Cloudflare Workers   | [examples/cloudflare-workers](./examples/cloudflare-workers) | memory  | Endpoint only — uses `auto-geo/cloudflare`   |
+| Express              | [examples/express](./examples/express)                       | memory  | Endpoint only — `runPublish` inline          |
+| SvelteKit            | [examples/sveltekit](./examples/sveltekit)                   | memory  | Endpoint only — `runPublish` in `+server.ts` |
+| Fastify              | [examples/fastify](./examples/fastify)                       | memory  | Endpoint only — `runPublish` inline          |
 
 `next-minimal` is the integration template — it has both the publish
 endpoint and the React render path. The other four are endpoint-only:
