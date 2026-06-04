@@ -8,6 +8,19 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-04
+
+### Changed
+
+- **CLI output redesigned across `doctor`, `fix`, `write`, `check`.** Branded `◆ auto-geo <cmd>  ╶╴  <tagline>` header. Two-space body indent. Aligned status-mark / name / detail columns (max name width computed once and padded). `▸ Score` / `▸ Coverage` arrow callouts for headline numbers with posture label in muted gray. Dim footer block with divider, `auto-geo <cmd> · github.com/shadowresearch/auto-geo`, and re-run hint. Color only on status marks: green `✓`, red `✗`, yellow `!`. ASCII fallback (`[OK]`, `[FAIL]`, `[WARN]`, `>`, `-`) when stdout isn't a TTY or `--no-color` is passed — keeps CI logs and piped output clean. `--narrow` flag (auto-detected under 80 columns) for tighter rendering. JSON output unchanged.
+- New shared `cli/ui.ts` module with `paint`, `glyphs`, `header`, `divider`, `rows`, `bulletList`, `footer` building blocks so future commands inherit the visual language.
+- 306 → 345 tests (+39): 30 ui.ts + 9 structural assertions across the existing renderer tests.
+
+### Notes
+
+- Zero new runtime dependencies (no chalk / picocolors / yoctocolors / boxen — the hand-rolled `paint` helper covers the surface).
+- JSON output byte-for-byte unchanged; downstream dashboards aren't affected.
+
 ## [0.2.3] — 2026-06-04
 
 ### Fixed
@@ -129,7 +142,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/shadowresearch/auto-geo/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/shadowresearch/auto-geo/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/shadowresearch/auto-geo/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/shadowresearch/auto-geo/compare/v0.2.0...v0.2.1
