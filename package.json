@@ -6,6 +6,9 @@
   "license": "MIT",
   "author": "Shadow (https://www.shadow.inc)",
   "homepage": "https://github.com/shadowresearch/auto-geo#readme",
+  "bin": {
+    "auto-geo": "./dist/cli/bin.js"
+  },
   "bugs": "https://github.com/shadowresearch/auto-geo/issues",
   "repository": {
     "type": "git",
@@ -102,6 +105,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "discovery:build": "bash scripts/build-discovery.sh"
+  },
+  "dependencies": {
+    "linkedom": "^0.18.0"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",

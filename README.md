@@ -30,6 +30,7 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 - [What's in this repo](#whats-in-this-repo)
 - [Quickstart (production setup)](#quickstart-production-setup)
 - [Examples](#examples)
+- [`auto-geo doctor` — audit any page for citation readiness](#auto-geo-doctor--audit-any-page-for-citation-readiness)
 - [The publishing flow](#the-publishing-flow)
 - [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
 - [How it compares](#how-it-compares)
@@ -91,7 +92,7 @@ yarn add auto-geo zod
 
 > **Inside a pnpm workspace?** Use `pnpm add`. `npm install` sometimes errors with `Cannot read properties of null (reading 'matches')` when it traverses ancestor `pnpm-lock.yaml` files.
 
-Node `>=18.17` required. `zod` is a peer dependency. Framework / storage peers (`next`, `hono`, `@vercel/kv`, `@supabase/supabase-js`, `react`) are optional — install only what your adapter uses.
+Node `>=18.17` required. `zod` is a peer dependency. Framework / storage peers (`next`, `hono`, `@vercel/kv`, `@supabase/supabase-js`, `react`) are optional — install only what your adapter uses. One runtime dep is bundled: `linkedom` (pure-JS HTML parser, MIT, no native deps) powers the `auto-geo doctor` CLI.
 
 ---
 
@@ -229,17 +230,18 @@ That's it — no database, no auth setup, no framework. Once you've seen `Publis
 
 ## What's in this repo
 
-| Path                                      | What it is                                                                                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [`AGENT.md`](./AGENT.md)                  | The canonical setup spec. Hand this to your coding agent.                                                                      |
-| [`core/`](./core)                         | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps.                      |
-| [`adapters/storage/`](./adapters/storage) | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface.                |
-| [`adapters/http/`](./adapters/http)       | HTTP adapters — Next.js App Router, Hono, Cloudflare Workers. Wrap `core/publish` as a request handler.                        |
-| [`components/react/`](./components/react) | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`.                                            |
-| [`mcp/`](./mcp)                           | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish.             |
-| [`examples/`](./examples)                 | Working example apps for Next.js, Hono on Bun, Cloudflare Workers, Express, SvelteKit, and Fastify. See [Examples](#examples). |
-| [`docs/`](./docs)                         | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide.                     |
-| [`tests/`](./tests)                       | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser.                          |
+| Path                                      | What it is                                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [`AGENT.md`](./AGENT.md)                  | The canonical setup spec. Hand this to your coding agent.                                                                            |
+| [`core/`](./core)                         | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps.                            |
+| [`adapters/storage/`](./adapters/storage) | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface.                      |
+| [`adapters/http/`](./adapters/http)       | HTTP adapters — Next.js App Router, Hono, Cloudflare Workers. Wrap `core/publish` as a request handler.                              |
+| [`components/react/`](./components/react) | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`.                                                  |
+| [`cli/`](./cli)                           | `auto-geo doctor` — CLI that audits any URL (or a whole sitemap) for GEO citation readiness. See [docs/doctor.md](./docs/doctor.md). |
+| [`mcp/`](./mcp)                           | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish.                   |
+| [`examples/`](./examples)                 | Working example apps for Next.js, Hono on Bun, Cloudflare Workers, Express, SvelteKit, and Fastify. See [Examples](#examples).       |
+| [`docs/`](./docs)                         | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide.                           |
+| [`tests/`](./tests)                       | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser.                                |
 
 ---
 
@@ -319,6 +321,69 @@ they prove the publish contract on each backend with a sample `curl`,
 and rely on `next-minimal` (or your own renderer) for HTML output. Each
 example's README has a copy-pasteable `curl` for the canonical payload
 and a verification step.
+
+---
+
+## `auto-geo doctor` — audit any page for citation readiness
+
+`auto-geo` ships with a CLI that audits any public webpage for GEO citation readiness. Run it on any URL — yours, a competitor's, every page in your sitemap — and get a structured report on the citation signals AI engines look for.
+
+```bash
+npx auto-geo@latest doctor https://example.com/some-page
+```
+
+```text
+auto-geo doctor — GEO citation readiness audit
+fetched https://example.com/some-page (1,247 words)
+
+✓ TL;DR present (52 words, in range)
+✗ Question-format H2 headings (2 of 6 are question-format; SOP §3 targets all)
+✓ Article JSON-LD present (Schema.org/Article JSON-LD found)
+✗ FAQPage JSON-LD present (No FAQPage JSON-LD block detected)
+✓ Entity density (12.3/1k words (49 entities in 1247 words))
+✗ Image cadence (0 images for 1247 words (target ~2, 1 per 500 words))
+✓ Answer-first first paragraph (96-word lede, leads with a declarative answer)
+✓ No self-link in related guides (No self-links detected in related section)
+
+Score: 5 / 8 checks pass — moderate GEO posture
+
+Top 3 fixes (ranked by citation lift):
+  1. Add a FAQPage JSON-LD block. Each Q is a citable extraction target.
+  2. Convert 4 statement-form H2 headings to question form (the questions a user would ask an AI engine).
+  3. Add 2 images with descriptive alt text (entity + context).
+
+Generated by auto-geo doctor (https://github.com/shadowresearch/auto-geo)
+Run on your other pages: npx auto-geo doctor <url>
+Learn more about GEO: https://www.shadow.inc/resources/what-is-geo
+```
+
+Three modes:
+
+```bash
+# Single page
+npx auto-geo doctor https://example.com/page
+
+# Whole sitemap — mean score, lowest-scoring pages, most common failures
+npx auto-geo doctor --site https://example.com/sitemap.xml
+
+# JSON for CI / dashboards (schema in cli/types.ts)
+npx auto-geo doctor https://example.com/page --json
+```
+
+Exit code: `0` if score ≥ 75%, `1` otherwise. Drop it into CI:
+
+```bash
+npx auto-geo doctor https://example.com/page && deploy
+```
+
+Use cases:
+
+- **Audit your own page before deploy** — gate publishes on a CI run that fails on regressions in citation signals.
+- **Audit a competitor's page** — see the exact citation gaps in a competitor's resource library.
+- **Whole-site sweep** — point `--site` at your sitemap and surface the lowest-scoring pages first.
+- **Dashboard integration** — `--json` returns a stable schema you can wire into Datadog, your internal admin, or your weekly GEO scorecard.
+
+See [`docs/doctor.md`](./docs/doctor.md) for the full check reference, JSON schema, and programmatic API (`runDoctor`, `runSitemapDoctor`, `auditHtml`).
 
 ---
 
