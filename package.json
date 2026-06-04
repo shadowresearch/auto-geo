@@ -1,7 +1,7 @@
 {
   "name": "auto-geo",
-  "version": "0.1.0",
-  "description": "Publishing engine for GEO resource pages — the pages large language models cite. Built by Shadow.",
+  "version": "0.1.1",
+  "description": "Publishing engine for GEO resource pages — the pages large language models cite. Built by Shadow, a media research lab building the next generation of AI-powered media intelligence and communications technology.",
   "type": "module",
   "license": "MIT",
   "author": "Shadow (https://www.shadow.inc)",
@@ -26,50 +26,58 @@
   ],
   "exports": {
     ".": {
-      "types": "./core/index.ts",
-      "import": "./core/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./schema": {
-      "types": "./core/schema.ts",
-      "import": "./core/schema.ts"
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js",
+      "require": "./dist/schema.cjs"
     },
     "./validation": {
-      "types": "./core/validation.ts",
-      "import": "./core/validation.ts"
+      "types": "./dist/validation.d.ts",
+      "import": "./dist/validation.js",
+      "require": "./dist/validation.cjs"
     },
     "./jsonld": {
-      "types": "./core/jsonld.ts",
-      "import": "./core/jsonld.ts"
+      "types": "./dist/jsonld.d.ts",
+      "import": "./dist/jsonld.js",
+      "require": "./dist/jsonld.cjs"
     },
     "./react": {
-      "types": "./components/react/index.ts",
-      "import": "./components/react/index.ts"
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
     },
     "./next": {
-      "types": "./adapters/http/next.ts",
-      "import": "./adapters/http/next.ts"
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js",
+      "require": "./dist/next.cjs"
     },
     "./hono": {
-      "types": "./adapters/http/hono.ts",
-      "import": "./adapters/http/hono.ts"
+      "types": "./dist/hono.d.ts",
+      "import": "./dist/hono.js",
+      "require": "./dist/hono.cjs"
     },
     "./storage/kv": {
-      "types": "./adapters/storage/kv.ts",
-      "import": "./adapters/storage/kv.ts"
+      "types": "./dist/storage/kv.d.ts",
+      "import": "./dist/storage/kv.js",
+      "require": "./dist/storage/kv.cjs"
     },
     "./storage/supabase": {
-      "types": "./adapters/storage/supabase.ts",
-      "import": "./adapters/storage/supabase.ts"
+      "types": "./dist/storage/supabase.d.ts",
+      "import": "./dist/storage/supabase.js",
+      "require": "./dist/storage/supabase.cjs"
     },
     "./storage/memory": {
-      "types": "./adapters/storage/memory.ts",
-      "import": "./adapters/storage/memory.ts"
+      "types": "./dist/storage/memory.d.ts",
+      "import": "./dist/storage/memory.js",
+      "require": "./dist/storage/memory.cjs"
     }
   },
   "files": [
-    "core",
-    "adapters",
-    "components",
+    "dist",
     "docs",
     "AGENT.md",
     "README.md",
@@ -77,6 +85,8 @@
     "CHANGELOG.md"
   ],
   "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -86,12 +96,12 @@
     "format:check": "prettier --check ."
   },
   "peerDependencies": {
-    "zod": "^3.23.0 || ^4.0.0",
-    "react": ">=18",
-    "@vercel/kv": "^3.0.0",
     "@supabase/supabase-js": "^2.0.0",
+    "@vercel/kv": "^3.0.0",
     "hono": "^4.0.0",
-    "next": ">=14"
+    "next": ">=14",
+    "react": ">=18",
+    "zod": "^3.23.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -121,6 +131,7 @@
     "prettier": "^3.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
     "vitest": "^2.0.0",
