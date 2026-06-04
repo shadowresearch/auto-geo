@@ -6,6 +6,22 @@ Thanks for your interest in contributing. `auto-geo` is built by [Shadow](https:
 
 Participation in this project is governed by our [Code of Conduct](./CODE_OF_CONDUCT.md). By participating, you agree to uphold it.
 
+## Project layout
+
+```
+core/                 Framework-agnostic schema, publish/delete pipelines,
+                      validation heuristics, JSON-LD derivation. Zero deps.
+adapters/storage/     ContentStore implementations (KV, Supabase, memory).
+                      memory.ts is the reference — start there.
+adapters/http/        HTTP adapters wrapping runPublish (Next.js, Hono).
+components/react/     Reference Tailwind renderer with pluggable LinkComponent.
+mcp/                  MCP server exposing publish as a tool for AI clients.
+examples/             Working integrations. next-minimal is the canonical one.
+docs/                 The substantive product: SOP, architecture, validation.
+tests/                Vitest suite. tests/fixtures/payload.ts is the canonical
+                      valid payload variants spread from.
+```
+
 ## Quick start
 
 ```bash
@@ -28,8 +44,8 @@ pnpm dev
 ## What we accept
 
 - **Bug fixes** to existing behavior, with a regression test.
-- **New storage adapters** that implement `ContentStore` from `core/store.ts` and ship with unit tests.
-- **New HTTP adapters** (Express, Fastify, Elysia, etc.) that wrap `core/publish.ts`'s `runPublish`/`runDelete` and follow the same status-code conventions as `adapters/http/next.ts`.
+- **New storage adapters** that implement `ContentStore` from `core/store.ts` and ship with unit tests. Use [`adapters/storage/memory.ts`](./adapters/storage/memory.ts) as the reference — it's the smallest complete implementation of the interface and the patterns there (seed support, in-memory map, sort by `publishedAt`, `limit`/`offset` slicing) apply to every backend.
+- **New HTTP adapters** (Express, Fastify, Elysia, etc.) that wrap `core/publish.ts`'s `runPublish`/`runDelete` and follow the same status-code conventions as [`adapters/http/next.ts`](./adapters/http/next.ts) — `validation_failed → 400`, `slug_reserved → 409`, `store_failed → 502`, `ok → 200`. Mirror the auth and revalidation flow from the Next.js adapter.
 - **Renderer improvements** that keep the seven-block architecture intact.
 - **Documentation** — typos, clarifications, additional examples, translation of the SOP.
 - **Test coverage improvements** on existing code.
@@ -75,6 +91,10 @@ The first line is ≤72 characters. The body, if any, explains _why_, not what.
 ### Type safety
 
 `pnpm typecheck` must pass. No `any` without an inline `// eslint-disable-next-line` and a justification comment.
+
+### Branch protection workflow
+
+`main` is protected. All changes go through pull requests — no direct pushes, including from maintainers. CI must be green (lint, typecheck, format:check, test) before a PR is mergeable. Push your branch to `origin`, open a PR using the [PR template](./.github/PULL_REQUEST_TEMPLATE.md), and wait for the checks. If CI is red, fix it on the same branch — don't open a new PR.
 
 ## Pull request checklist
 
