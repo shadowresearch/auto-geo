@@ -338,6 +338,28 @@ describe("renderFixHuman / renderFixJson", () => {
     expect(out).toContain("Estimated cost if run");
   });
 
+  it("human renderer uses the shared visual language (branded header, arrow score, ASCII fallback)", async () => {
+    const outcome = await runFix(makeFlags(), {
+      parsedPage: makePage({ wordCount: 100 }),
+      generate: vi.fn().mockResolvedValue({
+        payload: VALID_PAYLOAD,
+        attempts: 1,
+        elapsedMs: 1,
+      }),
+      writeFile: vi.fn(),
+      resolveApiKey: () => "sk-test",
+    });
+    const rich = renderFixHuman(outcome, { colors: true });
+    const plain = renderFixHuman(outcome, { colors: false });
+    expect(rich).toContain("auto-geo fix");
+    expect(rich).toContain("\u25c6"); // diamond
+    expect(rich).toContain("\u25b8"); // arrow on Score lines
+    expect(plain).toContain("auto-geo fix");
+    expect(plain).toContain("[OK]"); // ASCII status mark
+    expect(plain).not.toContain("\u25c6");
+    expect(plain).not.toContain("\x1b[");
+  });
+
   it("JSON renderer emits a stable object containing before, after, and payload", async () => {
     const outcome = await runFix(makeFlags(), {
       parsedPage: makePage({ wordCount: 100 }),

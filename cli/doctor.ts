@@ -51,6 +51,8 @@ export type RunSitemapOptions = RunDoctorOptions & {
 export type RenderOptions = {
   json?: boolean;
   colors?: boolean;
+  /** Tighten indent + divider width for sub-80-col terminals. */
+  narrow?: boolean;
 };
 
 // ── Single page ────────────────────────────────────────────────────
@@ -156,7 +158,10 @@ export function renderReport(
 ): string {
   return opts.json
     ? renderJsonReport(report)
-    : renderHumanReport(report, { colors: !!opts.colors });
+    : renderHumanReport(report, {
+        colors: !!opts.colors,
+        narrow: opts.narrow,
+      });
 }
 
 export function renderSitemapReport(
@@ -165,7 +170,10 @@ export function renderSitemapReport(
 ): string {
   return opts.json
     ? renderSitemapJson(report)
-    : renderSitemapHuman(report, { colors: !!opts.colors });
+    : renderSitemapHuman(report, {
+        colors: !!opts.colors,
+        narrow: opts.narrow,
+      });
 }
 
 // ── Internals ──────────────────────────────────────────────────────
