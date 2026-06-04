@@ -1,0 +1,23 @@
+{
+  "name": "auto-geo-sveltekit-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "auto-geo": "^0.1.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.2.0",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "svelte": "^5.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0"
+  }
+}
