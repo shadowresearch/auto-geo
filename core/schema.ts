@@ -29,23 +29,52 @@ import { z } from "zod";
 // ── Reusable primitives ───────────────────────────────────────────
 
 const entityRefSchema = z.object({
-  name: z.string().min(1),
-  url: z.string().url().optional(),
+  name: z
+    .string()
+    .min(1, "Entity name is required (e.g. 'OpenAI', 'Vercel KV')."),
+  url: z
+    .string()
+    .url("Entity url must be a full URL like 'https://openai.com' or omitted.")
+    .optional(),
 });
 
 const citationSchema = z.object({
-  url: z.string().url(),
+  url: z
+    .string()
+    .url(
+      "Citation url must be a full URL like 'https://schema.org/Article' — relative paths and bare domains are not allowed."
+    ),
   title: z.string().optional(),
   publisher: z.string().optional(),
 });
 
 const authorSchema = z.object({
-  name: z.string().min(1).max(120),
-  jobTitle: z.string().min(1).max(120),
+  name: z
+    .string()
+    .min(1, "author.name is required (e.g. 'Jane Doe').")
+    .max(120, "author.name must be at most 120 characters."),
+  jobTitle: z
+    .string()
+    .min(
+      1,
+      "author.jobTitle is required (e.g. 'Head of Content', 'Staff Engineer')."
+    )
+    .max(120, "author.jobTitle must be at most 120 characters."),
   /** 2-3 sentence bio rendered in the auto-injected "About the Author" block. */
-  bio: z.string().min(20).max(600),
+  bio: z
+    .string()
+    .min(
+      20,
+      "author.bio must be at least 20 characters — typically 2-3 sentences establishing the author's relevant expertise."
+    )
+    .max(600, "author.bio must be at most 600 characters."),
   /** Drives Person.sameAs in JSON-LD. */
-  linkedinUrl: z.string().url().optional(),
+  linkedinUrl: z
+    .string()
+    .url(
+      "author.linkedinUrl must be a full URL like 'https://www.linkedin.com/in/jane-doe' or omitted."
+    )
+    .optional(),
 });
 
 // ── Word-count helpers ────────────────────────────────────────────
@@ -380,24 +409,61 @@ export const resourcePublishSchema = z
         "Slug must be lowercase letters, numbers, and single hyphens (no leading/trailing hyphen)."
       ),
     /** Page title rendered as <h1>. */
-    title: z.string().min(1).max(160),
+    title: z
+      .string()
+      .min(1, "title is required — the <h1> shown on the page.")
+      .max(
+        160,
+        "title must be at most 160 characters (e.g. 'How does retrieval-augmented generation work?')."
+      ),
     /** <title> tag content; may differ from h1. Defaults to title if omitted. */
-    metaTitle: z.string().min(1).max(160).optional(),
+    metaTitle: z
+      .string()
+      .min(1, "metaTitle, if provided, must not be empty.")
+      .max(160, "metaTitle must be at most 160 characters.")
+      .optional(),
     /** <meta name="description"> content. */
-    metaDescription: z.string().min(50).max(180),
+    metaDescription: z
+      .string()
+      .min(
+        50,
+        "metaDescription must be at least 50 characters — under 50 produces a thin <meta description> that AI overviews skip."
+      )
+      .max(
+        180,
+        "metaDescription must be at most 180 characters — longer descriptions get truncated by Google and most AI engines."
+      ),
     /** Index/listing card category. */
-    category: z.string().min(1).max(80),
+    category: z
+      .string()
+      .min(
+        1,
+        "category is required (e.g. 'Tutorials', 'Comparisons', 'Concepts')."
+      )
+      .max(80, "category must be at most 80 characters."),
     /** 1-2 sentence summary for listing cards on /resources. */
-    excerpt: z.string().min(50).max(400),
+    excerpt: z
+      .string()
+      .min(
+        50,
+        "excerpt must be at least 50 characters — typically 1-2 sentences summarizing the page for listing cards."
+      )
+      .max(400, "excerpt must be at most 400 characters."),
 
     // ── Authoring ───────────────────────────────────────────────
     author: authorSchema,
     publishedAt: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "publishedAt must be ISO yyyy-mm-dd."),
+      .regex(
+        /^\d{4}-\d{2}-\d{2}$/,
+        "publishedAt must be a calendar date in yyyy-mm-dd form (e.g. '2026-06-01') — full ISO timestamps are not accepted."
+      ),
     modifiedAt: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "modifiedAt must be ISO yyyy-mm-dd.")
+      .regex(
+        /^\d{4}-\d{2}-\d{2}$/,
+        "modifiedAt must be a calendar date in yyyy-mm-dd form (e.g. '2026-06-02') or omitted."
+      )
       .optional(),
 
     // ── SEO ─────────────────────────────────────────────────────
