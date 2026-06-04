@@ -5,29 +5,30 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before opening a request, please read CONTRIBUTING.md — particularly the "what we generally do not accept" section, which covers schema loosening, markdown parsing, and breaking changes to the ContentStore interface.
+        Before opening a request, please read [CONTRIBUTING.md](https://github.com/shadowresearch/auto-geo/blob/main/CONTRIBUTING.md) — particularly the "what we generally do not accept" section, which covers schema loosening, markdown parsing, and breaking changes to the `ContentStore` interface.
 
   - type: textarea
-    id: problem
+    id: use-case
     attributes:
-      label: What problem are you trying to solve?
+      label: Use case
       description: Describe the underlying need, not the feature you want. The clearer the problem, the better the solution.
     validations:
       required: true
 
   - type: textarea
-    id: current-workaround
+    id: proposed-api
     attributes:
-      label: What you've tried today
-      description: How do you handle this without the requested feature? Why doesn't it work?
+      label: Proposed API
+      description: How would you expect the feature to work? Be concrete — API shape, file location, function signature, integration points with existing pipelines.
+      render: typescript
     validations:
       required: true
 
   - type: textarea
-    id: proposal
+    id: alternatives
     attributes:
-      label: Proposed solution
-      description: How would you expect the feature to work? Be concrete — API shape, file location, integration points with existing pipelines.
+      label: Alternatives considered
+      description: Other approaches you weighed and why you'd recommend this one.
     validations:
       required: true
 
@@ -48,8 +49,15 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: alternatives
+  - type: dropdown
+    id: willing-to-pr
     attributes:
-      label: Alternatives considered
-      description: Other approaches you weighed and why you'd recommend this one.
+      label: Willingness to PR
+      description: Are you willing to contribute the implementation if the proposal is accepted?
+      multiple: false
+      options:
+        - Yes — I'll open the PR
+        - Yes — with guidance from a maintainer
+        - No — I'm only reporting the need
+    validations:
+      required: true
