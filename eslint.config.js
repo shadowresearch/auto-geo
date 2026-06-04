@@ -8,6 +8,8 @@ export default tseslint.config(
       "dist/**",
       "coverage/**",
       "examples/**/.next/**",
+      "examples/**/.svelte-kit/**",
+      "examples/**/build/**",
       "mcp/dist/**",
     ],
   },
