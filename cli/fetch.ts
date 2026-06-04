@@ -60,16 +60,92 @@ export async function fetchPage(
       redirect: "follow",
       signal: controller.signal,
     });
+  } catch (err) {
+    throw decorateNetworkError(err, url, timeoutMs);
   } finally {
     clearTimeout(timer);
   }
 
   if (!response.ok) {
-    throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
+    throw new Error(explainHttpStatus(response.status, response.statusText));
   }
 
   const html = await response.text();
   return parsePage(url, html);
+}
+
+/**
+ * Translate raw HTTP status codes into actionable hints. The audience for
+ * these errors is twofold: agents driving the CLI (e.g. `npx auto-geo
+ * doctor` inside a Claude/Cursor sandbox) and humans on a terminal. Both
+ * benefit from a one-line cause hypothesis over a raw status string —
+ * agents act on actionable text, humans skip a Google round-trip.
+ */
+function explainHttpStatus(status: number, statusText: string): string {
+  if (status === 401 || status === 403) {
+    return `${status} ${statusText} — the page blocked the request (bot detection, WAF, or auth wall). Try a public URL or pass a browser-like User-Agent via the calling environment; sandboxed/egress-restricted runtimes will see this against any site that isn't allowlisted.`;
+  }
+  if (status === 404) {
+    return `${status} ${statusText} — the URL doesn't exist on the target host. Check the slug/path and try again.`;
+  }
+  if (status === 429) {
+    return `${status} ${statusText} — the host is rate-limiting the request. Wait and retry, or audit a different URL on the same host.`;
+  }
+  if (status >= 500) {
+    return `${status} ${statusText} — the target server returned a server error. The page is likely down or misconfigured; retry later.`;
+  }
+  return `fetch failed: ${status} ${statusText}`;
+}
+
+/**
+ * Translate fetch-time exceptions (DNS, refused, timeout, sandbox egress
+ * block) into actionable hints. Same rationale as `explainHttpStatus` —
+ * the consumer often needs to know the *category* of failure to react.
+ */
+function decorateNetworkError(
+  err: unknown,
+  url: string,
+  timeoutMs: number
+): Error {
+  const e = err as { name?: string; code?: string; message?: string };
+  const host = (() => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
+  })();
+
+  if (e?.name === "AbortError") {
+    return new Error(
+      `request timed out after ${Math.round(timeoutMs / 1000)}s while fetching ${host}. The host may be slow or blocking the request; retry, or raise the timeout.`
+    );
+  }
+  if (e?.code === "ENOTFOUND" || /ENOTFOUND/i.test(e?.message ?? "")) {
+    return new Error(
+      `DNS lookup failed for ${host}. Check the URL spelling, or confirm the domain resolves from this network.`
+    );
+  }
+  if (e?.code === "ECONNREFUSED" || /ECONNREFUSED/i.test(e?.message ?? "")) {
+    return new Error(
+      `connection refused by ${host}. The host isn't accepting connections on the requested port; the service may be down.`
+    );
+  }
+  if (e?.code === "ETIMEDOUT" || /ETIMEDOUT/i.test(e?.message ?? "")) {
+    return new Error(
+      `connection to ${host} timed out at the TCP layer. The host is unreachable from this network (firewall, sandbox egress block, or genuinely down).`
+    );
+  }
+  if (/fetch failed/i.test(e?.message ?? "")) {
+    // Generic undici "TypeError: fetch failed" — happens in sandboxed
+    // runtimes where outbound HTTPS to non-allowlisted domains is
+    // proxy-blocked. Surface that hypothesis so the caller knows where
+    // to look first.
+    return new Error(
+      `unable to reach ${host} (network error). If you're running in a sandboxed environment (Claude Code with a restricted egress proxy, CI without internet, a VPN-blocked host), the target domain may not be allowlisted. Try a known-public URL like https://www.npmjs.com first to isolate.`
+    );
+  }
+  return new Error(e?.message ?? String(err));
 }
 
 /**

@@ -534,6 +534,45 @@ describe("runDoctor (mocked fetch)", () => {
       runDoctor("https://example.com/p", { fetch: fakeFetch })
     ).rejects.toThrow(/500/);
   });
+
+  it("surfaces a bot-detection hint on 403", async () => {
+    const fakeFetch: typeof globalThis.fetch = async () =>
+      new Response("blocked", { status: 403, statusText: "Forbidden" });
+    await expect(
+      runDoctor("https://example.com/p", { fetch: fakeFetch })
+    ).rejects.toThrow(/bot detection|WAF|auth wall/i);
+  });
+
+  it("surfaces a rate-limit hint on 429", async () => {
+    const fakeFetch: typeof globalThis.fetch = async () =>
+      new Response("slow down", {
+        status: 429,
+        statusText: "Too Many Requests",
+      });
+    await expect(
+      runDoctor("https://example.com/p", { fetch: fakeFetch })
+    ).rejects.toThrow(/rate-limiting/i);
+  });
+
+  it("surfaces a sandbox-egress hint on generic fetch failure", async () => {
+    const fakeFetch: typeof globalThis.fetch = async () => {
+      throw new TypeError("fetch failed");
+    };
+    await expect(
+      runDoctor("https://example.com/p", { fetch: fakeFetch })
+    ).rejects.toThrow(/sandbox|egress|allowlisted/i);
+  });
+
+  it("surfaces a timeout hint on AbortError", async () => {
+    const fakeFetch: typeof globalThis.fetch = async () => {
+      const e = new Error("aborted");
+      e.name = "AbortError";
+      throw e;
+    };
+    await expect(
+      runDoctor("https://example.com/p", { fetch: fakeFetch })
+    ).rejects.toThrow(/timed out/i);
+  });
 });
 
 // ── Sitemap end-to-end ─────────────────────────────────────────────
