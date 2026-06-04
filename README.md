@@ -4,6 +4,10 @@
 [![npm version](https://img.shields.io/npm/v/auto-geo.svg)](https://www.npmjs.com/package/auto-geo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Built by Shadow](https://img.shields.io/badge/built%20by-Shadow-000000.svg)](https://www.shadow.inc)
+[![Bundle size](https://img.shields.io/bundlephobia/minzip/auto-geo)](https://bundlephobia.com/package/auto-geo)
+[![Downloads](https://img.shields.io/npm/dm/auto-geo)](https://www.npmjs.com/package/auto-geo)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/node/v/auto-geo)](https://nodejs.org/)
 
 **A publishing engine for GEO resource pages — the pages large language models cite.**
 
@@ -18,8 +22,11 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 ## Contents
 
 - [What is a GEO resource page?](#what-is-a-geo-resource-page)
+- [Why auto-geo](#why-auto-geo)
+- [Install](#install)
+- [60-second quickstart](#60-second-quickstart)
 - [What's in this repo](#whats-in-this-repo)
-- [Quickstart](#quickstart)
+- [Quickstart (production setup)](#quickstart-production-setup)
 - [The publishing flow](#the-publishing-flow)
 - [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
 - [How it compares](#how-it-compares)
@@ -47,6 +54,174 @@ See [`docs/concept.md`](./docs/concept.md) for a deeper walkthrough.
 
 ---
 
+## Why auto-geo
+
+### Why not just write Markdown blog posts?
+
+Markdown is freeform — there's no contract that a post has a TL;DR, that every H2 opens with a 40–60 word answer capsule, or that the FAQ exists. AI engines preferentially quote self-contained, structurally regular chunks, so a freeform Markdown corpus leaves citation probability on the table. `auto-geo` enforces the structure at the publish boundary so every page that ships is shaped for extraction, not just human reading.
+
+### Why not use a CMS like Sanity or Contentful?
+
+Traditional and headless CMSs optimize for editorial workflow — drafts, scheduling, multi-user review, freeform field shapes. `auto-geo` is a typed publishing primitive that lives inside your own app and rejects malformed payloads with a structured error your agent can iterate on. It's downstream of editorial, not a replacement for it: pair it with a CMS if you need one, or generate payloads from an agent. Either way, the contract enforces GEO structure before the page goes live.
+
+### Why isn't this just SEO?
+
+SEO optimizes for ranking in a link-based search results page; GEO optimizes for being _quoted_ inside an AI-generated answer. The signals diverge — citation favors answer-first paragraphs, question-format H2s, entity density, and self-contained chunks; ranking historically rewarded backlinks and on-page keyword optimization. `auto-geo` enforces the citation signals empirically linked to higher inclusion rates in ChatGPT, Perplexity, Google AI Overviews, Claude, and Gemini answers — patterns most SEO tooling doesn't measure or enforce.
+
+---
+
+## Install
+
+```bash
+npm install auto-geo zod
+```
+
+```bash
+pnpm add auto-geo zod
+```
+
+```bash
+yarn add auto-geo zod
+```
+
+> **Inside a pnpm workspace?** Use `pnpm add`. `npm install` sometimes errors with `Cannot read properties of null (reading 'matches')` when it traverses ancestor `pnpm-lock.yaml` files.
+
+Node `>=18.17` required. `zod` is a peer dependency. Framework / storage peers (`next`, `hono`, `@vercel/kv`, `@supabase/supabase-js`, `react`) are optional — install only what your adapter uses.
+
+---
+
+## 60-second quickstart
+
+Paste this into a fresh `quickstart.ts`, run with `tsx quickstart.ts` (or compile and run), and you'll see a published URL.
+
+```ts
+// quickstart.ts
+import { runPublish } from "auto-geo";
+import { createMemoryStore } from "auto-geo/storage/memory";
+
+const store = createMemoryStore();
+
+// A minimal payload satisfying every schema constraint.
+const payload = {
+  slug: "hello-auto-geo",
+  title: "What is auto-geo and how do I publish my first resource page?",
+  metaDescription:
+    "A minimal first publish showing how auto-geo validates and stores a GEO resource page end to end.",
+  category: "Tutorials",
+  excerpt:
+    "A minimal first publish showing how auto-geo validates and stores a GEO resource page end to end.",
+  author: {
+    name: "Jane Doe",
+    jobTitle: "Head of Content",
+    bio: "Jane writes about generative engine optimization and the architecture of pages that AI search engines cite.",
+  },
+  publishedAt: "2026-06-01",
+  geoMetadata: {
+    targetQueries: ["how does auto-geo publishing work"],
+    pageType: "resource" as const,
+    primaryFunction:
+      "Show a developer how to publish their first resource page.",
+    optimizationFramework: ["GEO" as const],
+    targetPlatforms: ["chatgpt" as const],
+    informationGainStatement:
+      "First-party demonstration of the auto-geo publish pipeline using the in-memory store, end to end.",
+    refreshCadence: "quarterly" as const,
+  },
+  tldr: {
+    text: "Auto-geo's publish pipeline validates an incoming payload, persists it to a content store, and returns a URL plus an array of soft warnings; this minimal example wires the pipeline against an in-memory store so you can see a successful publish in your terminal in under a minute without any external services involved at all.",
+  },
+  intro: {
+    blocks: [
+      {
+        type: "paragraph" as const,
+        text: "This minimal payload satisfies every required field of the auto-geo schema; in a real integration you would generate this payload from an agent or your editorial pipeline and POST it to your publishing endpoint, but here we call the underlying runPublish function directly against an in-memory store to demonstrate the contract without any external network calls or storage setup.",
+      },
+    ],
+  },
+  sections: [
+    {
+      heading: "How does the publish call work?",
+      answerCapsule:
+        "runPublish takes an unknown body plus options containing your store and site config; it parses the body against the Zod schema, calls store.publish on success, runs soft validation, and returns a discriminated-union result with a URL or an issues array so callers can act programmatically without parsing prose error messages.",
+      blocks: [],
+    },
+  ],
+  relatedGuides: {
+    items: [
+      {
+        title: "The GEO SOP",
+        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/sop.md",
+      },
+      {
+        title: "Page architecture",
+        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/architecture.md",
+      },
+      {
+        title: "Validation reference",
+        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/validation.md",
+      },
+      {
+        title: "Storage adapters",
+        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/storage.md",
+      },
+    ],
+  },
+  keyTakeaways: {
+    items: [
+      "Auto-geo enforces a strict seven-block architecture at the publish boundary so every published page is structurally citation-ready by design.",
+      "The runPublish function returns a discriminated-union result so callers branch on result.kind without parsing prose error strings ever.",
+      "Storage adapters are pluggable; the in-memory store ships for tests and demos, KV and Supabase ship for production deployments today.",
+      "Soft warnings come back on a successful publish so an agent can iterate on quality heuristics without being blocked by every non-critical recommendation.",
+    ],
+  },
+  faq: {
+    items: [
+      {
+        question: "Do I need a database to try auto-geo?",
+        answer:
+          "No, the in-memory store ships with the package and persists publishes for the lifetime of the process; it is intended for tests, demos, and the quickstart you are running right now, and you swap in a KV or Supabase adapter when you go to production without changing any of your call sites.",
+      },
+      {
+        question: "What does the publish result look like?",
+        answer:
+          "On success runPublish returns an object shaped kind ok with a slug, a url constructed from your site origin plus the base path plus the slug, and an array of soft warnings from the audit step; on failure it returns one of validation_failed, slug_reserved, or store_failed, each carrying enough context for the caller to surface or retry.",
+      },
+      {
+        question: "How do I wire this into a real HTTP endpoint?",
+        answer:
+          "Import createNextHandlers from auto-geo/next or the Hono adapter from auto-geo/hono, pass your store and site config, and export the returned POST and DELETE handlers from your route file; the adapters wrap runPublish with auth and revalidation so your endpoint becomes a one-file integration instead of a hand-rolled pipeline.",
+      },
+    ],
+  },
+  disclosure: {
+    text: "This quickstart is a runnable demonstration of the auto-geo publish pipeline using the in-memory store.",
+  },
+};
+
+const result = await runPublish(payload, {
+  store,
+  site: {
+    origin: "https://example.com",
+    publisher: {
+      name: "Example",
+      url: "https://example.com",
+      logo: "https://example.com/logo.png",
+    },
+  },
+});
+
+if (result.kind === "ok") {
+  console.log("Published:", result.url);
+  console.log("Warnings:", result.warnings.length);
+} else {
+  console.error("Publish failed:", result);
+}
+```
+
+That's it — no database, no auth setup, no framework. Once you've seen `Published: https://example.com/resources/hello-auto-geo` in your terminal, follow the production setup below to wire it into your real app.
+
+---
+
 ## What's in this repo
 
 | Path                                                | What it is                                                                                                         |
@@ -63,9 +238,9 @@ See [`docs/concept.md`](./docs/concept.md) for a deeper walkthrough.
 
 ---
 
-## Quickstart
+## Quickstart (production setup)
 
-The recommended path is to give this URL to your coding agent and let it read `AGENT.md`. If you want the short version:
+Once you've run the 60-second quickstart above, this is how you wire `auto-geo` into a real app with a persistent store. The recommended path is to give this repo URL to your coding agent and let it read `AGENT.md`. If you want the short version:
 
 ```bash
 # In an existing Next.js 15+ App Router project
