@@ -52,7 +52,8 @@ Usage:
 
 doctor flags:
   --json           Emit machine-readable JSON
-  --no-color       Disable ANSI colors
+  --no-color       Disable ANSI colors and box-drawing glyphs
+  --narrow         Tighten layout for <80 col terminals (auto-detected)
   --max-pages N    Cap pages audited from --site mode (default 100)
   --concurrency N  Concurrent fetches in --site mode (default 5)
 
@@ -117,6 +118,7 @@ export type DoctorArgs = {
   site?: string;
   json: boolean;
   color: boolean;
+  narrow: boolean;
   maxPages?: number;
   concurrency?: number;
 };
@@ -139,6 +141,7 @@ export type WriteArgs = {
   dryRun: boolean;
   json: boolean;
   color: boolean;
+  narrow: boolean;
 };
 
 export type FixArgs = {
@@ -151,6 +154,7 @@ export type FixArgs = {
   dryRun: boolean;
   json: boolean;
   color: boolean;
+  narrow: boolean;
   basePath: string;
   authorName?: string;
   authorJobTitle?: string;
@@ -169,14 +173,16 @@ export type CheckArgs = {
   concurrency?: number;
   json: boolean;
   color: boolean;
+  narrow: boolean;
 };
 
 export type HelpArgs = {
   command: "help";
-  // Carry the json + color flags so the help path is consistent with
-  // the rest of the parser; not used by callers.
+  // Carry the json + color + narrow flags so the help path is
+  // consistent with the rest of the parser; not used by callers.
   json: boolean;
   color: boolean;
+  narrow: boolean;
 };
 
 export type ParsedArgs =
@@ -191,7 +197,7 @@ export type ParsedArgs =
 export function parseArgs(argv: string[]): ParsedArgs {
   // Surface --help fast — works at any position, before subcommand.
   if (argv.includes("--help") || argv.includes("-h")) {
-    return { command: "help", json: false, color: true };
+    return { command: "help", json: false, color: true, narrow: false };
   }
 
   const first = argv[0];
@@ -210,6 +216,7 @@ export function parseDoctorArgs(argv: string[]): DoctorArgs {
     command: "doctor",
     json: false,
     color: true,
+    narrow: false,
   };
 
   const positionals: string[] = [];
@@ -217,6 +224,7 @@ export function parseDoctorArgs(argv: string[]): DoctorArgs {
     const a = argv[i]!;
     if (a === "--json") args.json = true;
     else if (a === "--no-color") args.color = false;
+    else if (a === "--narrow") args.narrow = true;
     else if (a === "--site") {
       const next = argv[++i];
       if (!next) throw new Error("--site requires a URL argument");
@@ -262,6 +270,7 @@ export function parseFixArgs(argv: string[]): FixArgs {
     dryRun: false,
     json: false,
     color: true,
+    narrow: false,
     basePath: "/resources",
   };
 
@@ -275,6 +284,7 @@ export function parseFixArgs(argv: string[]): FixArgs {
     };
     if (a === "--json") args.json = true;
     else if (a === "--no-color") args.color = false;
+    else if (a === "--narrow") args.narrow = true;
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--out") args.out = requireValue("--out");
     else if (a === "--provider") {
@@ -333,6 +343,7 @@ export function parseWriteArgs(argv: string[]): WriteArgs {
     dryRun: false,
     json: false,
     color: true,
+    narrow: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -344,6 +355,7 @@ export function parseWriteArgs(argv: string[]): WriteArgs {
     };
     if (a === "--json") args.json = true;
     else if (a === "--no-color") args.color = false;
+    else if (a === "--narrow") args.narrow = true;
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--domain") args.domain = requireValue("--domain");
     else if (a === "--query") args.queries.push(requireValue("--query"));
@@ -396,6 +408,7 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     engine: "perplexity",
     json: false,
     color: true,
+    narrow: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -407,6 +420,7 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     };
     if (a === "--json") args.json = true;
     else if (a === "--no-color") args.color = false;
+    else if (a === "--narrow") args.narrow = true;
     else if (a === "--domain") args.domain = requireValue("--domain");
     else if (a === "--query") args.queries.push(requireValue("--query"));
     else if (a === "--queries-file")
@@ -478,7 +492,11 @@ async function runSingleMode(parsed: DoctorArgs): Promise<number> {
   const colors = shouldUseColor(parsed.color, parsed.json);
   try {
     const report = await runDoctor(parsed.url!);
-    const out = renderReport(report, { json: parsed.json, colors });
+    const out = renderReport(report, {
+      json: parsed.json,
+      colors,
+      narrow: parsed.narrow,
+    });
     console.log(out);
     return report.scorePct >= 75 ? 0 : 1;
   } catch (err) {
@@ -511,7 +529,11 @@ async function runSiteMode(parsed: DoctorArgs): Promise<number> {
       maxPages: parsed.maxPages,
       concurrency: parsed.concurrency,
     });
-    const out = renderSitemapReport(report, { json: parsed.json, colors });
+    const out = renderSitemapReport(report, {
+      json: parsed.json,
+      colors,
+      narrow: parsed.narrow,
+    });
     console.log(out);
     return report.meanScorePct >= 75 ? 0 : 1;
   } catch (err) {
@@ -567,7 +589,7 @@ async function runFixCommand(parsed: FixArgs): Promise<number> {
     const outcome = await runFix(flags);
     const out = parsed.json
       ? renderFixJson(outcome)
-      : renderFixHuman(outcome, { colors });
+      : renderFixHuman(outcome, { colors, narrow: parsed.narrow });
     console.log(out);
     return 0;
   } catch (err) {
@@ -671,7 +693,9 @@ async function runWriteCommand(parsed: WriteArgs): Promise<number> {
     if (parsed.json) {
       console.log(renderWriteJson(summary));
     } else {
-      console.log(renderWriteSummary(summary, { colors }));
+      console.log(
+        renderWriteSummary(summary, { colors, narrow: parsed.narrow })
+      );
     }
 
     const failed = summary.outcomes.some((o) => o.kind === "failed");
@@ -762,7 +786,7 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
 
     const out = parsed.json
       ? renderCheckJson(report)
-      : renderCheckHuman(report, { colors });
+      : renderCheckHuman(report, { colors, narrow: parsed.narrow });
     console.log(out);
 
     if (parsed.out) {

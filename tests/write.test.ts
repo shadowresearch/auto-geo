@@ -566,6 +566,37 @@ describe("renderWriteSummary + renderWriteJson", () => {
     expect(obj.generatedBy).toBe("auto-geo write");
     expect(obj.domain).toBe(s.domain);
   });
+
+  it("human renderer includes the branded header and uses the shared visual language", () => {
+    const s = fakeSummary({
+      outcomes: [
+        {
+          kind: "ok",
+          query: "what is GEO",
+          slug: "geo",
+          filePath: "/tmp/out/geo.json",
+          payload: makeValidPayload(),
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          retries: 0,
+          cost: 0.018,
+        },
+      ],
+    });
+    const rich = renderWriteSummary(s, { colors: true });
+    const plain = renderWriteSummary(s, { colors: false });
+    expect(rich).toContain("auto-geo write");
+    expect(rich).toContain("\u25c6"); // diamond
+    expect(rich).toContain("\u25b8"); // arrow on Total line
+    expect(plain).toContain("auto-geo write");
+    expect(plain).toContain("[OK]"); // ASCII status mark
+    expect(plain).not.toContain("\u25c6");
+    expect(plain).not.toContain("\x1b[");
+  });
+
+  it("human renderer emits no ANSI when colors disabled", () => {
+    const s = fakeSummary();
+    expect(renderWriteSummary(s, { colors: false })).not.toContain("\x1b[");
+  });
 });
 
 // ── run() integration via CLI parser ───────────────────────────────

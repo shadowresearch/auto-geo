@@ -10,6 +10,21 @@ import {
 } from "./llm";
 import { deriveUniqueSlugs } from "./slug";
 import type { LanguageModel } from "ai";
+import {
+  bold,
+  bulletList,
+  detectNarrow,
+  dim,
+  footer,
+  glyphs,
+  header,
+  indent,
+  kv,
+  muted,
+  paint,
+  statusMark,
+  type UiOptions,
+} from "./ui";
 
 /**
  * Orchestrator for `auto-geo write`. Owns the per-query loop, slug
@@ -279,51 +294,89 @@ async function runOne(input: RunOneInput): Promise<WriteOutcome> {
 
 export function renderWriteSummary(
   summary: WriteSummary,
-  opts: { colors?: boolean } = {}
+  opts: { colors?: boolean; narrow?: boolean } = {}
 ): string {
-  const c = makeColors(opts.colors ?? false);
+  const ui: UiOptions = {
+    colors: opts.colors ?? false,
+    narrow: detectNarrow(process.stdout?.columns, opts.narrow),
+    width: process.stdout?.columns,
+  };
+  const g = glyphs(ui.colors);
   const lines: string[] = [];
 
   lines.push(
-    c.bold(
-      "auto-geo write — generate publish-ready resource pages from target queries"
+    header(
+      "auto-geo write",
+      "generate publish-ready resource pages from target queries",
+      ui
     )
   );
-  lines.push(`domain:   ${summary.domain}`);
-  lines.push(`queries:  ${summary.outcomes.length}`);
-  lines.push(`provider: ${summary.provider} (${summary.modelName})`);
-  if (summary.dryRun) lines.push(c.dim("mode:     dry-run (no LLM calls)"));
+  lines.push("");
+  lines.push(kv("domain", summary.domain, { ...ui, valueCol: 12 }));
+  lines.push(
+    kv("queries", String(summary.outcomes.length), { ...ui, valueCol: 12 })
+  );
+  lines.push(
+    kv("provider", `${summary.provider} (${summary.modelName})`, {
+      ...ui,
+      valueCol: 12,
+    })
+  );
+  if (summary.dryRun) {
+    lines.push(
+      kv("mode", "dry-run (no LLM calls)", {
+        ...ui,
+        valueCol: 12,
+        valueColor: "yellow",
+      })
+    );
+  }
   lines.push("");
 
+  // Per-outcome rows: mark + JSON.stringified query + path + meta dim.
   for (const o of summary.outcomes) {
     if (o.kind === "ok") {
-      lines.push(`${c.ok("✓")} ${JSON.stringify(o.query)}`);
       lines.push(
-        `  → ${path.relative(process.cwd(), o.filePath) || o.filePath} ${c.dim(
-          `(validated${o.retries > 0 ? `, ${o.retries} retry${o.retries === 1 ? "" : "ies"}` : ""}, ${formatUsd(o.cost)})`
+        `${indent(ui)}${statusMark("ok", ui.colors)}  ${JSON.stringify(o.query)}`
+      );
+      const meta = `(validated${o.retries > 0 ? `, ${o.retries} retry${o.retries === 1 ? "" : "ies"}` : ""}, ${formatUsd(o.cost)})`;
+      lines.push(
+        `${indent(ui)}   ${dim(
+          `\u2192 ${path.relative(process.cwd(), o.filePath) || o.filePath} ${meta}`,
+          ui.colors
         )}`
       );
     } else if (o.kind === "dry-run") {
-      lines.push(`${c.dim("•")} ${JSON.stringify(o.query)}`);
       lines.push(
-        `  → ${path.relative(process.cwd(), o.filePath) || o.filePath} ${c.dim(
-          `(dry-run, ~${formatUsd(o.estimatedCost)})`
+        `${indent(ui)}${statusMark("info", ui.colors)}  ${JSON.stringify(o.query)}`
+      );
+      lines.push(
+        `${indent(ui)}   ${dim(
+          `\u2192 ${path.relative(process.cwd(), o.filePath) || o.filePath} (dry-run, ~${formatUsd(o.estimatedCost)})`,
+          ui.colors
         )}`
       );
     } else {
-      lines.push(`${c.bad("✗")} ${JSON.stringify(o.query)}`);
-      lines.push(`  ${c.bad(o.error)}`);
+      lines.push(
+        `${indent(ui)}${statusMark("fail", ui.colors)}  ${JSON.stringify(o.query)}`
+      );
+      lines.push(`${indent(ui)}   ${paint(o.error, "red", ui.colors)}`);
       if (o.issues && o.issues.length > 0) {
         for (const iss of o.issues.slice(0, 5)) {
-          lines.push(`    • [${iss.path}] ${iss.message}`);
+          lines.push(
+            `${indent(ui)}     ${dim(`${g.bullet} [${iss.path}] ${iss.message}`, ui.colors)}`
+          );
         }
         if (o.issues.length > 5) {
-          lines.push(`    … ${o.issues.length - 5} more`);
+          lines.push(
+            `${indent(ui)}     ${dim(`… ${o.issues.length - 5} more`, ui.colors)}`
+          );
         }
       }
     }
   }
 
+  // Total callout.
   lines.push("");
   const okCount = summary.outcomes.filter((o) => o.kind === "ok").length;
   const failedCount = summary.outcomes.filter(
@@ -335,31 +388,65 @@ export function renderWriteSummary(
     `${summary.outcomes.length} page${plural(summary.outcomes.length)}`
   );
   if (okCount > 0) parts.push(`${okCount} ok`);
-  if (failedCount > 0) parts.push(c.bad(`${failedCount} failed`));
+  if (failedCount > 0)
+    parts.push(paint(`${failedCount} failed`, "red", ui.colors));
   if (dryCount > 0) parts.push(`${dryCount} dry-run`);
   parts.push(
     `~${formatUsd(summary.totalCost)} ${summary.dryRun ? "estimated" : "spent"}`
   );
   parts.push(`${(summary.elapsedMs / 1000).toFixed(1)}s elapsed`);
-  lines.push(`Total: ${parts.join(" · ")}`);
+  lines.push(
+    `${indent(ui)}${g.arrow} ${bold("Total:", ui.colors)} ${parts.join(
+      ` ${dim("\u00b7", ui.colors)} `
+    )}`
+  );
 
   if (okCount > 0 && !summary.dryRun) {
     lines.push("");
-    lines.push("Next steps:");
-    lines.push("  1. Review each file");
-    lines.push("  2. Publish via your endpoint:");
+    lines.push(`${indent(ui)}${bold("Next steps:", ui.colors)}`);
+    const steps = bulletList(
+      [
+        "Review each file",
+        "Publish via your endpoint",
+        `Re-audit after publish: npx auto-geo doctor ${summary.domain}/<basePath>/<slug>`,
+      ],
+      ui
+    );
+    for (const ln of steps) lines.push(ln);
+    // Concrete publish snippet (dim so it doesn't dominate the row stack).
+    lines.push("");
+    const outRel =
+      path.relative(process.cwd(), summary.outDir) || summary.outDir;
     lines.push(
-      `     for f in ${path.relative(process.cwd(), summary.outDir) || summary.outDir}/*.json; do`
+      `${indent(ui)}  ${dim(`for f in ${outRel}/*.json; do`, ui.colors)}`
     );
     lines.push(
-      `       curl -X POST "$PUBLISH_URL" -H "Authorization: Bearer $PUBLISH_TOKEN" \\`
+      `${indent(ui)}  ${dim(
+        `  curl -X POST "$PUBLISH_URL" -H "Authorization: Bearer $PUBLISH_TOKEN" \\`,
+        ui.colors
+      )}`
     );
-    lines.push(`         -H "Content-Type: application/json" -d @"$f"`);
-    lines.push(`     done`);
     lines.push(
-      `  3. Re-audit after publish: npx auto-geo doctor ${summary.domain}/<basePath>/<slug>`
+      `${indent(ui)}  ${dim(
+        `    -H "Content-Type: application/json" -d @"$f"`,
+        ui.colors
+      )}`
     );
+    lines.push(`${indent(ui)}  ${dim(`done`, ui.colors)}`);
   }
+
+  const footerLines = footer(
+    [
+      `auto-geo write \u00b7 github.com/shadowresearch/auto-geo`,
+      `Re-run: npx auto-geo write --domain ${summary.domain} --query "<q>"`,
+    ],
+    ui
+  );
+  for (const ln of footerLines) lines.push(ln);
+  lines.push(`${indent(ui)}${dim(`Generated by auto-geo write`, ui.colors)}`);
+
+  // Hint to silence unused-var lint when no muted/Row consumers fire.
+  void muted;
 
   return lines.join("\n");
 }
@@ -410,15 +497,4 @@ function formatYmd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function makeColors(enabled: boolean) {
-  const wrap = (open: string, close: string) => (s: string) =>
-    enabled ? `\x1b[${open}m${s}\x1b[${close}m` : s;
-  return {
-    bold: wrap("1", "22"),
-    dim: wrap("2", "22"),
-    ok: wrap("32", "39"),
-    bad: wrap("31", "39"),
-  };
 }

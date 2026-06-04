@@ -742,6 +742,40 @@ describe("renderHumanReport", () => {
     const out = renderHumanReport(report, { colors: false });
     expect(out).not.toContain("\x1b[");
   });
+
+  it("renders the branded header (auto-geo doctor + tagline)", () => {
+    const report = auditHtml("https://example.com/p", SAMPLE_HTML);
+    const rich = renderHumanReport(report, { colors: true });
+    const plain = renderHumanReport(report, { colors: false });
+    expect(rich).toContain("auto-geo doctor");
+    expect(rich).toContain("GEO citation readiness audit");
+    expect(rich).toContain("\u25c6"); // diamond glyph in rich mode
+    expect(plain).toContain("auto-geo doctor");
+    expect(plain).toContain("GEO citation readiness audit");
+    expect(plain).not.toContain("\u25c6"); // no diamond in plain
+  });
+
+  it("renders the score line with an arrow glyph in rich mode", () => {
+    const report = auditHtml("https://example.com/p", SAMPLE_HTML);
+    const rich = renderHumanReport(report, { colors: true });
+    expect(rich).toContain("\u25b8"); // ▸ score arrow
+    expect(rich).toContain("Score:");
+  });
+
+  it("renders ASCII fallback for status marks in plain mode", () => {
+    const report = auditHtml("https://example.com/p", SAMPLE_HTML);
+    const plain = renderHumanReport(report, { colors: false });
+    // At least one check passes and at least one fails on the sample,
+    // so both [OK] and [FAIL] should appear.
+    expect(plain).toContain("[OK]");
+  });
+
+  it("ends with a footer divider before the metadata lines", () => {
+    const report = auditHtml("https://example.com/p", SAMPLE_HTML);
+    const plain = renderHumanReport(report, { colors: false });
+    // Divider in plain mode is a run of `-` chars.
+    expect(plain).toMatch(/-{20,}/);
+  });
 });
 
 describe("renderJsonReport", () => {

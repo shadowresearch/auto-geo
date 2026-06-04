@@ -13,6 +13,22 @@ import {
   type LlmProvider,
 } from "./llm";
 import type { CheckResult, DoctorReport, ParsedPage } from "./types";
+import {
+  bold,
+  bulletList,
+  detectNarrow,
+  dim,
+  footer,
+  glyphs,
+  header,
+  indent,
+  kv,
+  muted,
+  paint,
+  rows,
+  type Row,
+  type UiOptions,
+} from "./ui";
 
 /**
  * Fix-orchestrator seam for the LLM call. `runFix` accepts an injected
@@ -663,109 +679,131 @@ function deriveOriginOrFallback(url: string): string {
  * Render the human-readable `auto-geo fix` report. Kept here (not in
  * `cli/render.ts`) so the fix and doctor render layers can evolve
  * independently without one of them having to import the other's
- * types.
+ * types — but presentation primitives are shared via `cli/ui.ts` so
+ * the four subcommands look like one tool.
  */
 export function renderFixHuman(
   outcome: FixOutcome,
-  opts: { colors: boolean } = { colors: false }
+  opts: { colors: boolean; narrow?: boolean } = { colors: false }
 ): string {
-  const { colors } = opts;
+  const ui: UiOptions = {
+    colors: opts.colors,
+    narrow: detectNarrow(process.stdout?.columns, opts.narrow),
+    width: process.stdout?.columns,
+  };
+  const g = glyphs(ui.colors);
   const lines: string[] = [];
 
+  lines.push(header("auto-geo fix", "generate a GEO-optimized rewrite", ui));
+  lines.push("");
+  lines.push(kv("url", outcome.url, { ...ui, valueCol: 10 }));
   lines.push(
-    color("auto-geo fix — generate a GEO-optimized rewrite", "bold", colors)
-  );
-  lines.push(`url:      ${outcome.url}`);
-  lines.push(
-    `fetched:  ${formatInt(outcome.before.wordCount)} word${
-      outcome.before.wordCount === 1 ? "" : "s"
-    }`
+    kv(
+      "fetched",
+      `${formatInt(outcome.before.wordCount)} word${outcome.before.wordCount === 1 ? "" : "s"}`,
+      { ...ui, valueCol: 10 }
+    )
   );
   lines.push("");
 
-  lines.push("Audit (before):");
-  for (const c of outcome.before.checks) {
-    const mark = c.pass
-      ? color("✓", "green", colors)
-      : color("✗", "red", colors);
-    lines.push(`${mark} ${c.name}`);
-  }
+  // Audit (before) — section header + aligned check rows.
+  lines.push(`${indent(ui)}${bold("Audit (before):", ui.colors)}`);
+  const beforeRows: Row[] = outcome.before.checks.map((c) => ({
+    status: c.pass ? "ok" : "fail",
+    name: c.name,
+  }));
+  for (const ln of rows(beforeRows, ui)) lines.push(ln);
   lines.push("");
   lines.push(
-    color(
+    `${indent(ui)}${g.arrow} ${bold(
       `Score (before): ${outcome.before.score} / ${outcome.before.total}`,
-      "bold",
-      colors
-    )
+      ui.colors
+    )}`
   );
   lines.push("");
 
   if (outcome.dryRun) {
-    lines.push(color("Dry-run — LLM call skipped.", "yellow", colors));
     lines.push(
-      `Estimated cost if run: ~$${outcome.estimatedCostUsd.toFixed(4)}`
+      `${indent(ui)}${paint("Dry-run — LLM call skipped.", "yellow", ui.colors)}`
     );
-    lines.push(`Would have written: ${outcome.outPath}`);
+    lines.push(
+      `${indent(ui)}${dim(
+        `Estimated cost if run: ~$${outcome.estimatedCostUsd.toFixed(4)}`,
+        ui.colors
+      )}`
+    );
+    lines.push(
+      `${indent(ui)}${dim(`Would have written: ${outcome.outPath}`, ui.colors)}`
+    );
     return lines.join("\n");
   }
 
+  // Audit (projected) — section header + aligned rows (payloadOnly
+  // checks show their explanation in the detail column).
   lines.push(
-    `Generating rewrite via ${color("<provider> <model>", "cyan", colors)}…`
+    `${indent(ui)}${bold("Audit (projected for rewrite):", ui.colors)}`
   );
-  lines.push("");
-
-  lines.push("Audit (projected for rewrite):");
-  for (const c of outcome.after.checks) {
-    const mark = c.pass
-      ? color("✓", "green", colors)
-      : color("✗", "red", colors);
-    const suffix = c.payloadOnly ? ` (${c.detail})` : "";
-    lines.push(`${mark} ${c.name}${suffix}`);
-  }
+  const afterRows: Row[] = outcome.after.checks.map((c) => ({
+    status: c.pass ? "ok" : "fail",
+    name: c.name,
+    detail: c.payloadOnly ? c.detail : undefined,
+  }));
+  for (const ln of rows(afterRows, ui)) lines.push(ln);
   lines.push("");
 
   const posture = scoreLabel(outcome.after.scorePct);
   lines.push(
-    color(
-      `Score (projected): ${outcome.after.score} / ${outcome.after.total} — ${posture} GEO posture`,
-      "bold",
-      colors
-    )
+    `${indent(ui)}${g.arrow} ${bold(
+      `Score (projected): ${outcome.after.score} / ${outcome.after.total}`,
+      ui.colors
+    )}  ${muted(`— ${posture} GEO posture`, ui.colors)}`
   );
   lines.push("");
 
-  lines.push(`→ ${outcome.outPath} (validated by resourcePublishSchema)`);
   lines.push(
-    `Total: ~$${outcome.estimatedCostUsd.toFixed(4)} estimated · ${formatElapsed(
-      outcome.elapsedMs
-    )} elapsed`
+    `${indent(ui)}${dim(
+      `\u2192 ${outcome.outPath} (validated by resourcePublishSchema)`,
+      ui.colors
+    )}`
+  );
+  lines.push(
+    `${indent(ui)}${dim(
+      `Total: ~$${outcome.estimatedCostUsd.toFixed(4)} estimated \u00b7 ${formatElapsed(
+        outcome.elapsedMs
+      )} elapsed`,
+      ui.colors
+    )}`
   );
   if (outcome.attempts > 1) {
     lines.push(
-      color(
+      `${indent(ui)}${dim(
         `(self-correction fired — ${outcome.attempts} attempts to satisfy the schema)`,
-        "dim",
-        colors
-      )
+        ui.colors
+      )}`
     );
   }
   lines.push("");
 
-  lines.push("Next steps:");
-  lines.push(
-    "  1. Review the payload (especially TL;DR + FAQ — the citation-target chunks)"
+  lines.push(`${indent(ui)}${bold("Next steps:", ui.colors)}`);
+  const steps = bulletList(
+    [
+      "Review the payload (especially TL;DR + FAQ — the citation-target chunks)",
+      "Publish to your endpoint",
+      `Re-audit: npx auto-geo doctor ${outcome.publishUrlPreview}`,
+    ],
+    ui
   );
-  lines.push("  2. Publish to your endpoint");
-  lines.push(`  3. Re-audit: npx auto-geo doctor ${outcome.publishUrlPreview}`);
-  lines.push("");
+  for (const ln of steps) lines.push(ln);
 
-  lines.push(
-    color(
-      `Generated by ${GENERATED_BY} (https://github.com/shadowresearch/auto-geo)`,
-      "dim",
-      colors
-    )
+  const footerLines = footer(
+    [
+      `auto-geo fix \u00b7 github.com/shadowresearch/auto-geo`,
+      `Fix another page: npx auto-geo fix <url>`,
+    ],
+    ui
   );
+  for (const ln of footerLines) lines.push(ln);
+  lines.push(`${indent(ui)}${dim(`Generated by ${GENERATED_BY}`, ui.colors)}`);
 
   return lines.join("\n");
 }
@@ -791,20 +829,6 @@ export function renderFixJson(outcome: FixOutcome): string {
 }
 
 // ── Tiny rendering helpers ────────────────────────────────────────
-
-const ANSI = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  green: "\x1b[32m",
-  red: "\x1b[31m",
-  yellow: "\x1b[33m",
-  cyan: "\x1b[36m",
-};
-
-function color(s: string, code: keyof typeof ANSI, on: boolean): string {
-  return on ? `${ANSI[code]}${s}${ANSI.reset}` : s;
-}
 
 function scoreLabel(pct: number): string {
   if (pct >= 90) return "strong";

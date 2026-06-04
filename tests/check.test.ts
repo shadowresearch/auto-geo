@@ -314,6 +314,22 @@ describe("renderCheckHuman", () => {
       "\x1b["
     );
   });
+
+  it("renders the branded header and a coverage callout with arrow glyph in rich mode", () => {
+    const rich = renderCheckHuman(sampleReport, { colors: true });
+    expect(rich).toContain("auto-geo check");
+    expect(rich).toContain("\u25c6"); // diamond
+    expect(rich).toContain("\u25b8"); // arrow on Coverage line
+  });
+
+  it("falls back to ASCII glyphs and no box-drawing in plain mode", () => {
+    const plain = renderCheckHuman(sampleReport, { colors: false });
+    expect(plain).not.toContain("\u25c6");
+    expect(plain).not.toContain("\u25b8");
+    expect(plain).not.toContain("\u2500");
+    // Plain mode uses [OK]/[FAIL] for the nested per-query status row.
+    expect(plain).toMatch(/\[(OK|FAIL)\]/);
+  });
 });
 
 describe("renderCheckJson", () => {
