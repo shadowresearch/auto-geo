@@ -107,6 +107,27 @@ describe("checkTldrPresent", () => {
     expect(result.detail).toMatch(/4[0-9]|5[0-9]|60 words/);
   });
 
+  it("skips meta-mentions of 'TL;DR' (e.g. 'seven blocks in order: TL;DR, intro, …') and anchors on the real block", () => {
+    // Real failure mode observed in production: a resource page's
+    // metaDescription enumerates the page architecture and includes the
+    // string "TL;DR" mid-list. The doctor's first-match regex anchored
+    // on that meta reference, captured surrounding header text + the
+    // real TL;DR fused together, and reported 72 words on a 55-word
+    // TL;DR. Requiring the next char after "TL;DR" to be uppercase
+    // rejects the comma-tail meta reference and falls through to the
+    // real block.
+    const realTldr =
+      "A GEO-optimized page has seven blocks in order: TL;DR, intro, H2 sections, Related Guides, Key Takeaways, FAQ, and disclosure. Each block exists because it maps to a specific extraction behavior in at least one major AI engine. Enforcing the architecture structurally beats author discipline.";
+    const text = `Page summary listing blocks in order: TL;DR, intro, H2 sections each opening with a 40-60 word answer capsule. Last updated June 4, 2026. TL;DR${realTldr} When a developer asks ChatGPT a question, the engine assembles an answer from several sources.`;
+    const result = checkTldrPresent(makePage({ text }));
+    // Real TL;DR is ~46 words and self-terminating; the strict anchor
+    // must skip the meta reference and land on the real block, then
+    // bound the chunks at the TL;DR's own sentences (not spill into
+    // "When a developer…"). Allow some tolerance for the join heuristic.
+    expect(result.pass).toBe(true);
+    expect(result.detail).toMatch(/4[0-9]|5[0-9]|60 words/);
+  });
+
   it("recovers TL;DR sentence boundaries when paragraphs concatenate without whitespace", () => {
     // linkedom's textContent joins `</p><p>` boundaries without
     // inserting a space, so a real rendered TL;DR can look like

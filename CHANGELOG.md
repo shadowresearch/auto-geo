@@ -8,6 +8,12 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-06-04
+
+### Fixed
+
+- **`auto-geo doctor` TL;DR meta-mention false anchor** — when a page's metaDescription or H1 enumerates the architecture and includes the string `"TL;DR, intro, …"` mid-list, the previous regex anchored on that meta reference instead of the real TL;DR block. Tightened to `TL;?DR[:\s]*(?=[A-Z])` so the match requires the next character to be a capital letter — comma/period meta references fail the lookahead and the regex skips to the next occurrence (the actual TL;DR). Falls back to the lenient pattern if no strict match exists. Observed in production on `shadow.inc/resources/structuring-pages-for-ai-citation`, which was reporting 72 words on a 55-word TL;DR.
+
 ## [0.2.2] — 2026-06-04
 
 ### Fixed
@@ -123,7 +129,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/shadowresearch/auto-geo/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/shadowresearch/auto-geo/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/shadowresearch/auto-geo/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/shadowresearch/auto-geo/compare/v0.1.3...v0.2.0
