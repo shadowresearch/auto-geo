@@ -8,6 +8,12 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+### Added
+
+- **Cloudflare Workers HTTP adapter** — new `auto-geo/cloudflare` subpath exporting `createCloudflareHandlers` (compose with your own `fetch`) and `createCloudflareFetch` (one-line default export). Uses only the Fetch API — no Node imports, no Cloudflare SDK dependency. Reads the bearer token from the Workers `env` argument at request time and maps publish/delete results to the same HTTP status contract as the Next.js and Hono adapters. Optional `onSuccess` hook for cache invalidation.
+- `examples/cloudflare-workers/` — minimal Worker app with `wrangler.toml`, both integration styles, in-memory store seeded with one valid payload, and a sample `curl` for the canonical smoke-test payload.
+- `tests/cloudflare.test.ts` — 22 new tests covering routing, auth, every result `kind`, the `onSuccess` hook, content-type, and the `createCloudflareFetch` wrapper.
+
 ## [0.1.2] — 2026-06-03
 
 ### Changed

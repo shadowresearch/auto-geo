@@ -17,6 +17,7 @@ export default defineConfig({
     "react/index": "components/react/index.ts",
     next: "adapters/http/next.ts",
     hono: "adapters/http/hono.ts",
+    cloudflare: "adapters/http/cloudflare.ts",
     "storage/kv": "adapters/storage/kv.ts",
     "storage/supabase": "adapters/storage/supabase.ts",
     "storage/memory": "adapters/storage/memory.ts",
