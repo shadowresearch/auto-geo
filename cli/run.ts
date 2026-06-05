@@ -114,8 +114,23 @@ check flags:
   --engine <name>         perplexity (default), openai, anthropic, gemini,
                           xai (alias: grok), all
   --model <name>          Engine-specific model (default sonar for perplexity)
-  --concurrency N         Parallel queries (default 2)
-  --json                  Machine-readable output
+  --concurrency N         Parallel queries (default 6)
+  --answers <mode>        Render the engine's answer under each query in
+                          human output: none, preview (default, ~3 sentences),
+                          or full. Ignored under --json / --ndjson.
+  --json                  One single JSON object on stdout when the run completes
+  --ndjson                Stream one JSON object per line to stdout AS each
+                          query resolves; final line is the summary tagged
+                          {"_summary":true,…}. Mutually exclusive with --json.
+                          Use this for piping into agents / dashboards on big
+                          runs (50+ queries).
+  --timeout-per-query N   Per-query outer timeout in seconds (default 60).
+                          A query that exceeds this is marked errored; the
+                          rest of the run continues.
+  --max-runtime N         Whole-run timeout in seconds (default: no cap).
+                          When exceeded, remaining queries are marked
+                          skipped, partial results are still emitted, and
+                          the process exits with code 2.
   --out <path>            Also write full report to this path
 
   Engine env vars:
@@ -128,7 +143,7 @@ check flags:
   --engine all runs every engine whose API key is present in env, and
   reports per-engine coverage plus a union roll-up.
 
-  Exit code: 0 if coverage > 0%, 1 if 0%.
+  Exit code: 0 if coverage > 0%, 1 if 0%, 2 if --max-runtime tripped.
 
 Docs: https://github.com/shadowresearch/auto-geo
 `;
@@ -195,6 +210,17 @@ export type CheckArgs = {
   out?: string;
   concurrency?: number;
   json: boolean;
+  ndjson: boolean;
+  /**
+   * Render mode for the engine's natural-language answer under each
+   * query in human output. Ignored under `--json` / `--ndjson`.
+   *   - `"preview"` (default): ~3 sentences, ~400 chars, truncation marker
+   *   - `"full"`: the entire response
+   *   - `"none"`: suppress (matches v0.4.0 behavior)
+   */
+  answers: "none" | "preview" | "full";
+  timeoutPerQuerySec?: number;
+  maxRuntimeSec?: number;
   color: boolean;
   narrow: boolean;
 };
@@ -430,6 +456,8 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     queries: [],
     engine: "perplexity",
     json: false,
+    ndjson: false,
+    answers: "preview",
     color: true,
     narrow: false,
   };
@@ -442,6 +470,7 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
       return next;
     };
     if (a === "--json") args.json = true;
+    else if (a === "--ndjson") args.ndjson = true;
     else if (a === "--no-color") args.color = false;
     else if (a === "--narrow") args.narrow = true;
     else if (a === "--domain") args.domain = requireValue("--domain");
@@ -451,11 +480,29 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     else if (a === "--engine") args.engine = requireValue("--engine");
     else if (a === "--model") args.model = requireValue("--model");
     else if (a === "--out") args.out = requireValue("--out");
-    else if (a === "--concurrency") {
+    else if (a === "--answers") {
+      const v = requireValue("--answers");
+      if (v !== "none" && v !== "preview" && v !== "full") {
+        throw new Error(
+          `--answers must be 'none', 'preview', or 'full'; got '${v}'`
+        );
+      }
+      args.answers = v;
+    } else if (a === "--concurrency") {
       const n = Number(requireValue("--concurrency"));
       if (!Number.isFinite(n) || n <= 0)
         throw new Error("--concurrency requires a positive number");
       args.concurrency = n;
+    } else if (a === "--timeout-per-query") {
+      const n = Number(requireValue("--timeout-per-query"));
+      if (!Number.isFinite(n) || n <= 0)
+        throw new Error("--timeout-per-query requires a positive number");
+      args.timeoutPerQuerySec = n;
+    } else if (a === "--max-runtime") {
+      const n = Number(requireValue("--max-runtime"));
+      if (!Number.isFinite(n) || n <= 0)
+        throw new Error("--max-runtime requires a positive number");
+      args.maxRuntimeSec = n;
     } else if (a.startsWith("--")) {
       throw new Error(`unknown flag: ${a}`);
     } else {
@@ -463,6 +510,12 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
         `unexpected positional argument: ${a} (check uses --domain / --query)`
       );
     }
+  }
+
+  if (args.json && args.ndjson) {
+    throw new Error(
+      "--json and --ndjson are mutually exclusive (one is a single object, the other is a per-line stream)"
+    );
   }
 
   return args;
@@ -746,7 +799,11 @@ async function runWriteCommand(parsed: WriteArgs): Promise<number> {
 // ── check runner ──────────────────────────────────────────────────
 
 async function runCheckCommand(parsed: CheckArgs): Promise<number> {
-  const colors = shouldUseColor(parsed.color, parsed.json);
+  // Color shut-off mirrors --json under --ndjson too — the stdout
+  // stream is machine-readable, so any color leakage to stderr-bound
+  // progress lines is the only place colors could apply. We pass
+  // through and shouldUseColor still respects TTY/NO_COLOR.
+  const colors = shouldUseColor(parsed.color, parsed.json || parsed.ndjson);
 
   if (!parsed.domain) {
     console.error("auto-geo check: --domain is required\n");
@@ -793,6 +850,14 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
     return 2;
   }
 
+  // Build the per-query result hook. In `--ndjson` mode each result
+  // streams to stdout as one JSON line, plus a `_summary` line at the
+  // end. In human mode we print a `[i/N] ✓/✗ "query" — …` status to
+  // stderr so it doesn't pollute stdout (the final report still goes
+  // to stdout). Under `--json` we stay silent — that mode is "one
+  // single object, nothing else".
+  const onResult = makeOnResultHandler(parsed);
+
   try {
     if (engineName === "all") {
       // Collect every engine whose primary env var is set. Skip the
@@ -824,16 +889,41 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
         queries,
         engines,
         concurrency: parsed.concurrency,
+        timeoutPerQuerySec: parsed.timeoutPerQuerySec,
+        maxRuntimeSec: parsed.maxRuntimeSec,
       });
       report.skippedEngines = skipped;
 
-      const out = parsed.json
-        ? renderMultiCheckJson(report)
-        : renderMultiCheckHuman(report, {
-            colors,
-            narrow: parsed.narrow,
-          });
-      console.log(out);
+      // --ndjson streams per-engine per-query results plus a summary.
+      if (parsed.ndjson) {
+        for (const engineId of report.engines) {
+          const r = report.perEngine[engineId];
+          if (!r) continue;
+          for (const result of r.results) {
+            process.stdout.write(
+              JSON.stringify(formatNdjsonResultLine(result, engineId)) + "\n"
+            );
+          }
+        }
+        process.stdout.write(
+          JSON.stringify({
+            _summary: true,
+            domain: report.domain,
+            engines: report.engines,
+            skippedEngines: report.skippedEngines,
+            ...report.summary,
+            acrossEngines: report.acrossEngines,
+          }) + "\n"
+        );
+      } else {
+        const out = parsed.json
+          ? renderMultiCheckJson(report)
+          : renderMultiCheckHuman(report, {
+              colors,
+              narrow: parsed.narrow,
+            });
+        console.log(out);
+      }
 
       if (parsed.out) {
         try {
@@ -845,6 +935,13 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
         }
       }
 
+      // If max-runtime tripped, signal that via exit code 2 even if
+      // some coverage was achieved before the deadline — surfaces the
+      // truncated run to CI.
+      const skippedByDeadline = Object.values(report.perEngine).some((r) =>
+        r.results.some((q) => q.error === "skipped — max runtime exceeded")
+      );
+      if (skippedByDeadline) return 2;
       return report.summary.unionCoveragePct > 0 ? 0 : 1;
     }
 
@@ -867,12 +964,32 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
       queries,
       engine,
       concurrency: parsed.concurrency,
+      timeoutPerQuerySec: parsed.timeoutPerQuerySec,
+      maxRuntimeSec: parsed.maxRuntimeSec,
+      onResult,
     });
 
-    const out = parsed.json
-      ? renderCheckJson(report)
-      : renderCheckHuman(report, { colors, narrow: parsed.narrow });
-    console.log(out);
+    if (parsed.ndjson) {
+      // Streamed already via onResult — only emit the summary line.
+      process.stdout.write(
+        JSON.stringify({
+          _summary: true,
+          domain: report.domain,
+          engine: report.engine,
+          model: report.model,
+          ...report.summary,
+        }) + "\n"
+      );
+    } else {
+      const out = parsed.json
+        ? renderCheckJson(report)
+        : renderCheckHuman(report, {
+            colors,
+            narrow: parsed.narrow,
+            answer: parsed.answers,
+          });
+      console.log(out);
+    }
 
     if (parsed.out) {
       try {
@@ -884,6 +1001,12 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
       }
     }
 
+    // --max-runtime tripped → exit 2 even if coverage > 0 in the
+    // partial run; surfaces the truncated result to CI.
+    const skippedByDeadline = report.results.some(
+      (r) => r.error === "skipped — max runtime exceeded"
+    );
+    if (skippedByDeadline) return 2;
     return report.summary.coveragePct > 0 ? 0 : 1;
   } catch (err) {
     if (parsed.json) {
@@ -897,6 +1020,16 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
           2
         )
       );
+    } else if (parsed.ndjson) {
+      // Emit an error-tagged line so consumers tailing the stream see
+      // SOMETHING rather than an EOF mid-stream.
+      process.stdout.write(
+        JSON.stringify({
+          _error: true,
+          domain: parsed.domain,
+          error: err instanceof Error ? err.message : String(err),
+        }) + "\n"
+      );
     } else {
       console.error(
         `auto-geo check: ${err instanceof Error ? err.message : String(err)}`
@@ -904,6 +1037,74 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
     }
     return 1;
   }
+}
+
+/**
+ * Build the per-result hook passed to `runCheck`. The hook drives the
+ * two agent-facing affordances:
+ *   1. `--ndjson` — one JSON object per line to stdout AS each query
+ *      resolves (no per-engine attribution in single-engine mode).
+ *   2. Live progress in human / `--json`-quiet mode — a one-line
+ *      `[i/N] ✓/✗ "query" — …` status to stderr so 50-query runs
+ *      don't go silent and force a downstream agent to give up. Under
+ *      `--json` we stay silent (that mode is "one single object").
+ */
+function makeOnResultHandler(parsed: CheckArgs) {
+  return function onResult(
+    result: import("./check").CheckQueryResult,
+    completed: number,
+    total: number
+  ): void {
+    if (parsed.ndjson) {
+      // Stream the result to stdout.
+      process.stdout.write(
+        JSON.stringify(formatNdjsonResultLine(result)) + "\n"
+      );
+      return;
+    }
+    if (parsed.json) return; // pure JSON mode is silent until the final object
+    // Human / progress mode → stderr.
+    const mark = result.error ? "!" : result.cited ? "\u2713" : "\u2717";
+    const queryLabel = JSON.stringify(result.query);
+    const sourceCount = result.rawSources.length;
+    let detail: string;
+    if (result.error) {
+      detail = `error: ${result.error}`;
+    } else if (result.cited) {
+      detail = `cited (${result.citations.length} source${
+        result.citations.length === 1 ? "" : "s"
+      })`;
+    } else {
+      detail = `not cited (${sourceCount} source${
+        sourceCount === 1 ? "" : "s"
+      })`;
+    }
+    process.stderr.write(
+      `  [${completed}/${total}] ${mark} ${queryLabel} \u2014 ${detail}\n`
+    );
+  };
+}
+
+/**
+ * Per-query line shape for `--ndjson`. Stable for downstream
+ * consumers — fields are additive only.
+ */
+function formatNdjsonResultLine(
+  result: import("./check").CheckQueryResult,
+  engine?: string
+) {
+  const line: Record<string, unknown> = {
+    query: result.query,
+    cited: result.cited,
+    citations: result.citations,
+    rawSources: result.rawSources,
+    answer: result.answer,
+    timestamp: new Date().toISOString(),
+  };
+  if (engine) line.engine = engine;
+  if (result.usage) line.usage = result.usage;
+  if (result.error) line.error = result.error;
+  return line;
 }
 
 async function resolveAuthor(parsed: WriteArgs): Promise<ResourceAuthor> {
