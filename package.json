@@ -1,6 +1,6 @@
 {
   "name": "auto-geo",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Publishing engine for GEO resource pages — the pages large language models cite. Built by Shadow, a media research lab building the next generation of AI-powered media intelligence and communications technology.",
   "type": "module",
   "license": "MIT",
