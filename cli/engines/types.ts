@@ -26,6 +26,13 @@ export type CitedSource = {
   title?: string;
   /** Short snippet / excerpt the engine extracted, if any. */
   snippet?: string;
+  /**
+   * Adapter-level annotation kept alongside the source — used for
+   * caveats the matcher / renderer should be aware of, e.g. Gemini's
+   * grounding URIs that are Google redirect wrappers rather than the
+   * raw source domain. Optional; most engines never populate this.
+   */
+  notes?: string;
 };
 
 /**

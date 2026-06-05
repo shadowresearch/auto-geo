@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  ALL_ENGINE_NAMES,
   createEngine,
+  engineHasCredentials,
   hostnameMatchesDomain,
   normalizeDomain,
   runCheck,
+  runCheckMulti,
   type CheckReport,
 } from "../cli/check";
-import {
-  createOpenAIEngine,
-  parseOpenAICitations,
-} from "../cli/engines/openai";
 import { createPerplexityEngine } from "../cli/engines/perplexity";
 import type { CitedSource, Engine, EngineResponse } from "../cli/engines/types";
 import { renderCheckHuman, renderCheckJson } from "../cli/render";
@@ -440,48 +439,6 @@ describe("createPerplexityEngine", () => {
   });
 });
 
-// ── OpenAI engine (stub) ──────────────────────────────────────────
-
-describe("createOpenAIEngine", () => {
-  it("returns an engine whose askWithCitations throws the not-implemented error", async () => {
-    const engine = createOpenAIEngine({ apiKey: "test" });
-    expect(engine.name).toBe("openai");
-    await expect(engine.askWithCitations("q")).rejects.toThrow(
-      /not yet implemented/
-    );
-  });
-
-  it("parses url_citation annotations from a Responses-API shape", () => {
-    const out = parseOpenAICitations({
-      output: [
-        {
-          type: "message",
-          content: [
-            {
-              type: "output_text",
-              text: "GEO is a thing.",
-              annotations: [
-                {
-                  type: "url_citation",
-                  url: "https://www.shadow.inc/p",
-                  title: "Shadow on GEO",
-                },
-                {
-                  type: "url_citation",
-                  url: "https://www.shadow.inc/p", // duplicate dropped
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-    expect(out).toEqual([
-      { url: "https://www.shadow.inc/p", title: "Shadow on GEO" },
-    ]);
-  });
-});
-
 // ── createEngine dispatcher ───────────────────────────────────────
 
 describe("createEngine", () => {
@@ -493,6 +450,151 @@ describe("createEngine", () => {
   it("returns an openai engine for 'openai'", () => {
     const e = createEngine("openai", { apiKey: "x" });
     expect(e.name).toBe("openai");
+  });
+
+  it("returns engines for the four new ids (anthropic / gemini / xai)", () => {
+    expect(createEngine("anthropic", { apiKey: "x" }).name).toBe("anthropic");
+    expect(createEngine("gemini", { apiKey: "x" }).name).toBe("gemini");
+    expect(createEngine("xai", { apiKey: "x" }).name).toBe("xai");
+  });
+
+  it("exposes the full engine registry as ALL_ENGINE_NAMES", () => {
+    expect(ALL_ENGINE_NAMES).toEqual([
+      "perplexity",
+      "openai",
+      "anthropic",
+      "gemini",
+      "xai",
+    ]);
+  });
+
+  it("engineHasCredentials checks the canonical env var per engine", () => {
+    const originals = {
+      PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      XAI_API_KEY: process.env.XAI_API_KEY,
+    };
+    try {
+      for (const k of Object.keys(originals)) delete process.env[k];
+      expect(engineHasCredentials("perplexity")).toBe(false);
+      process.env.PERPLEXITY_API_KEY = "x";
+      expect(engineHasCredentials("perplexity")).toBe(true);
+      // Gemini fallback alias.
+      expect(engineHasCredentials("gemini")).toBe(false);
+      process.env.GEMINI_API_KEY = "y";
+      expect(engineHasCredentials("gemini")).toBe(true);
+    } finally {
+      for (const [k, v] of Object.entries(originals)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+});
+
+// ── runCheckMulti aggregator ──────────────────────────────────────
+
+describe("runCheckMulti", () => {
+  it("aggregates per-engine reports and computes a union roll-up", async () => {
+    const e1 = makeEngine(
+      {
+        a: { answer: "", citations: sources("https://shadow.inc/a") },
+        b: { answer: "", citations: sources("https://other.com/x") },
+      },
+      { name: "alpha", model: "m1" }
+    );
+    const e2 = makeEngine(
+      {
+        a: { answer: "", citations: sources("https://other.com/y") },
+        b: { answer: "", citations: sources("https://shadow.inc/b") },
+      },
+      { name: "beta", model: "m2" }
+    );
+    const e3 = makeEngine(
+      {
+        a: { answer: "", citations: sources("https://other.com/z") },
+        b: { answer: "", citations: sources("https://other.com/w") },
+      },
+      { name: "gamma", model: "m3" }
+    );
+
+    const report = await runCheckMulti({
+      domain: "shadow.inc",
+      queries: ["a", "b"],
+      engines: [e1, e2, e3],
+    });
+
+    expect(report.engines).toEqual(["alpha", "beta", "gamma"]);
+
+    // Per-engine breakdown.
+    expect(report.perEngine.alpha!.summary.coveragePct).toBe(50);
+    expect(report.perEngine.beta!.summary.coveragePct).toBe(50);
+    expect(report.perEngine.gamma!.summary.coveragePct).toBe(0);
+
+    // Across-engines roll-up.
+    expect(report.acrossEngines).toEqual([
+      {
+        query: "a",
+        citedByAny: true,
+        citedByEngines: ["alpha"],
+        ranByEngines: ["alpha", "beta", "gamma"],
+      },
+      {
+        query: "b",
+        citedByAny: true,
+        citedByEngines: ["beta"],
+        ranByEngines: ["alpha", "beta", "gamma"],
+      },
+    ]);
+
+    // Union = 2/2 (both queries cited by ≥1 engine), mean = (50+50+0)/3 = 33.
+    expect(report.summary.unionCoveragePct).toBe(100);
+    expect(report.summary.meanCoveragePct).toBe(33);
+  });
+
+  it("reports 0% union coverage when no engine cites the domain", async () => {
+    const e1 = makeEngine({
+      q: { answer: "", citations: sources("https://x.com") },
+    });
+    const report = await runCheckMulti({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engines: [e1],
+    });
+    expect(report.summary.unionCoveragePct).toBe(0);
+    expect(report.acrossEngines[0]!.citedByAny).toBe(false);
+  });
+
+  it("isolates per-engine failures from the across-engines union", async () => {
+    const ok = makeEngine({
+      q: { answer: "", citations: sources("https://shadow.inc/a") },
+    });
+    const bad = makeEngine(
+      { q: { answer: "", citations: [] } },
+      {
+        name: "broken",
+        throwFor: ["q"],
+      }
+    );
+    const report = await runCheckMulti({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engines: [ok, bad],
+    });
+    // Broken engine has one errored query — coverage 0%.
+    expect(report.perEngine.broken!.summary.coveragePct).toBe(0);
+    expect(report.perEngine.broken!.summary.errors).toHaveLength(1);
+    // The healthy engine still cited, so the union counts the query.
+    expect(report.summary.unionCoveragePct).toBe(100);
+  });
+
+  it("throws if called with zero engines", async () => {
+    await expect(
+      runCheckMulti({ domain: "shadow.inc", queries: ["q"], engines: [] })
+    ).rejects.toThrow(/at least one engine/);
   });
 });
 
@@ -598,7 +700,7 @@ describe("run() — check subcommand", () => {
     expect(err.join("\n")).toContain("at least one --query");
   });
 
-  it("returns 2 for --engine all (reserved for future)", async () => {
+  it("returns 2 for an unknown --engine value", async () => {
     const { err } = captureConsole();
     const code = await run([
       "check",
@@ -607,10 +709,240 @@ describe("run() — check subcommand", () => {
       "--query",
       "x",
       "--engine",
-      "all",
+      "bogus",
     ]);
     expect(code).toBe(2);
-    expect(err.join("\n")).toContain("--engine all");
+    const out = err.join("\n");
+    expect(out).toContain("unknown --engine bogus");
+    expect(out).toContain(
+      "perplexity, openai, anthropic, gemini, xai (grok), all"
+    );
+  });
+
+  it("fails fast when --engine xai is missing its API key", async () => {
+    const original = process.env.XAI_API_KEY;
+    delete process.env.XAI_API_KEY;
+    try {
+      const { err } = captureConsole();
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "x",
+        "--engine",
+        "xai",
+      ]);
+      expect(code).toBe(2);
+      expect(err.join("\n")).toContain("XAI_API_KEY");
+    } finally {
+      if (original === undefined) delete process.env.XAI_API_KEY;
+      else process.env.XAI_API_KEY = original;
+    }
+  });
+
+  it("accepts --engine grok as an alias for xai", async () => {
+    const originals = {
+      XAI_API_KEY: process.env.XAI_API_KEY,
+      PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+    };
+    process.env.XAI_API_KEY = "test";
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        expect(url).toContain("api.x.ai");
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: "x",
+                  citations: ["https://www.shadow.inc/p"],
+                },
+              },
+            ],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          }),
+          { status: 200 }
+        );
+      }) as typeof globalThis.fetch;
+      captureConsole();
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "x",
+        "--engine",
+        "grok",
+      ]);
+      expect(code).toBe(0);
+    } finally {
+      if (originals.XAI_API_KEY === undefined) delete process.env.XAI_API_KEY;
+      else process.env.XAI_API_KEY = originals.XAI_API_KEY;
+    }
+  });
+
+  it("--engine all returns 2 with a helpful error when no API keys are set", async () => {
+    const originals = {
+      PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      XAI_API_KEY: process.env.XAI_API_KEY,
+    };
+    for (const k of Object.keys(originals)) delete process.env[k];
+    try {
+      const { err } = captureConsole();
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "x",
+        "--engine",
+        "all",
+      ]);
+      expect(code).toBe(2);
+      expect(err.join("\n")).toContain("at least one API key");
+    } finally {
+      for (const [k, v] of Object.entries(originals)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  it("--engine all aggregates the engines whose keys are present", async () => {
+    const originals = {
+      PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      XAI_API_KEY: process.env.XAI_API_KEY,
+    };
+    for (const k of Object.keys(originals)) delete process.env[k];
+    // Two engines enabled, three skipped.
+    process.env.PERPLEXITY_API_KEY = "test";
+    process.env.OPENAI_API_KEY = "test";
+
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("perplexity.ai")) {
+          return new Response(
+            JSON.stringify({
+              choices: [{ message: { content: "x" } }],
+              citations: ["https://www.shadow.inc/p"],
+              usage: {
+                prompt_tokens: 1,
+                completion_tokens: 1,
+                total_tokens: 2,
+              },
+            }),
+            { status: 200 }
+          );
+        }
+        if (url.includes("api.openai.com")) {
+          return new Response(
+            JSON.stringify({
+              output: [
+                {
+                  type: "message",
+                  content: [
+                    {
+                      type: "output_text",
+                      text: "x",
+                      annotations: [
+                        {
+                          type: "url_citation",
+                          url: "https://elsewhere.example/x",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            }),
+            { status: 200 }
+          );
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }) as typeof globalThis.fetch;
+
+      const { out } = captureConsole();
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "what is GEO",
+        "--engine",
+        "all",
+      ]);
+      // Perplexity cited, OpenAI did not — union > 0 → exit 0.
+      expect(code).toBe(0);
+      const text = out.join("\n");
+      expect(text).toContain("Per-engine breakdown:");
+      expect(text).toMatch(/perplexity/);
+      expect(text).toMatch(/openai/);
+      expect(text).toMatch(/Union coverage/);
+    } finally {
+      for (const [k, v] of Object.entries(originals)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  it("--engine all --json emits the multi-engine report shape", async () => {
+    const originals = {
+      PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      XAI_API_KEY: process.env.XAI_API_KEY,
+    };
+    for (const k of Object.keys(originals)) delete process.env[k];
+    process.env.PERPLEXITY_API_KEY = "test";
+
+    try {
+      globalThis.fetch = (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "x" } }],
+            citations: ["https://www.shadow.inc/p"],
+          }),
+          { status: 200 }
+        )) as typeof globalThis.fetch;
+      const { out } = captureConsole();
+      await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q",
+        "--engine",
+        "all",
+        "--json",
+      ]);
+      const parsed = JSON.parse(out.join("\n"));
+      expect(parsed.engines).toEqual(["perplexity"]);
+      expect(parsed.acrossEngines).toHaveLength(1);
+      expect(parsed.acrossEngines[0].citedByAny).toBe(true);
+      expect(parsed.summary.unionCoveragePct).toBe(100);
+      expect(parsed.skippedEngines.length).toBeGreaterThan(0);
+    } finally {
+      for (const [k, v] of Object.entries(originals)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 
   it("returns 1 when coverage is 0% (CI failure mode)", async () => {

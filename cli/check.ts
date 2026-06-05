@@ -1,5 +1,8 @@
+import { createAnthropicEngine } from "./engines/anthropic";
+import { createGeminiEngine } from "./engines/gemini";
 import { createOpenAIEngine } from "./engines/openai";
 import { createPerplexityEngine } from "./engines/perplexity";
+import { createXAIEngine } from "./engines/xai";
 import type {
   CitedSource,
   Engine,
@@ -89,7 +92,50 @@ export type RunCheckOptions = {
 
 // ── Engine selection ──────────────────────────────────────────────
 
-export type EngineName = "perplexity" | "openai";
+/**
+ * Canonical engine identifiers. `grok` is accepted as a public alias
+ * for `xai` at the CLI parser layer but is normalized to `xai` before
+ * `createEngine` is called.
+ */
+export type EngineName =
+  | "perplexity"
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "xai";
+
+/** Every engine in the registry — used by `--engine all`. */
+export const ALL_ENGINE_NAMES: readonly EngineName[] = [
+  "perplexity",
+  "openai",
+  "anthropic",
+  "gemini",
+  "xai",
+] as const;
+
+/**
+ * Map from engine id to the env var that must be set for it to run.
+ * Drives both the CLI's --help text and `--engine all`'s availability
+ * check (engines whose key is unset are skipped, not failed).
+ *
+ * Gemini accepts either GOOGLE_API_KEY or GEMINI_API_KEY — we list the
+ * primary here and the adapter falls back to the second.
+ */
+export const ENGINE_ENV_VARS: Record<EngineName, string> = {
+  perplexity: "PERPLEXITY_API_KEY",
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GOOGLE_API_KEY",
+  xai: "XAI_API_KEY",
+};
+
+/** True if the engine's primary env var is present in the environment. */
+export function engineHasCredentials(name: EngineName): boolean {
+  if (process.env[ENGINE_ENV_VARS[name]]) return true;
+  // Gemini fallback alias.
+  if (name === "gemini" && process.env.GEMINI_API_KEY) return true;
+  return false;
+}
 
 /**
  * Build an engine adapter by name. The CLI is the only caller — tests
@@ -106,6 +152,12 @@ export function createEngine(
       return createPerplexityEngine(opts);
     case "openai":
       return createOpenAIEngine(opts);
+    case "anthropic":
+      return createAnthropicEngine(opts);
+    case "gemini":
+      return createGeminiEngine(opts);
+    case "xai":
+      return createXAIEngine(opts);
     default: {
       // Exhaustive — TS will flag if a new EngineName is added without
       // wiring it in. The runtime branch is a safety net.
@@ -217,6 +269,141 @@ function summarize(
       totalCitations,
       estimatedCostUsd,
       errors,
+    },
+    generatedBy: GENERATED_BY,
+  };
+}
+
+// ── Multi-engine aggregation ──────────────────────────────────────
+
+export type RunCheckMultiOptions = {
+  domain: string;
+  queries: string[];
+  engines: Engine[];
+  concurrency?: number;
+};
+
+/**
+ * A query's roll-up across every engine that ran. `citedByAny` is the
+ * union signal: did ANY engine cite the domain for this query? The
+ * `perEngine` map preserves engine-by-engine attribution so the
+ * renderer can show "perplexity ✓, openai ✗, gemini ✓".
+ */
+export type AcrossEngineQueryRow = {
+  query: string;
+  citedByAny: boolean;
+  /** Engine ids that cited the domain for this query. */
+  citedByEngines: string[];
+  /** Engine ids that ran (regardless of cited result). */
+  ranByEngines: string[];
+};
+
+export type MultiEngineCheckReport = {
+  domain: string;
+  /** Engine ids actually executed (those with credentials present). */
+  engines: string[];
+  /**
+   * Skipped engines + the reason — surfaced so the user knows why a
+   * given engine didn't run under `--engine all`.
+   */
+  skippedEngines: Array<{ engine: string; reason: string }>;
+  /** Per-engine reports keyed by engine id. */
+  perEngine: Record<string, CheckReport>;
+  /** The across-engines roll-up — one row per input query. */
+  acrossEngines: AcrossEngineQueryRow[];
+  summary: {
+    totalQueries: number;
+    /**
+     * Number of queries cited by at least one engine. Numerator of the
+     * union-coverage metric.
+     */
+    citedByAnyCount: number;
+    /** Union coverage as a percentage 0-100. */
+    unionCoveragePct: number;
+    /**
+     * Mean of each engine's individual coverage. Different framing
+     * from union coverage — answers "what's the average engine
+     * doing?" vs "are you cited anywhere?".
+     */
+    meanCoveragePct: number;
+    /** Sum of estimated cost across every per-engine report. */
+    estimatedCostUsd: number;
+  };
+  generatedBy: string;
+};
+
+/**
+ * Run the same query set against every engine in parallel and produce
+ * both the per-engine reports and a union roll-up. Each engine's run is
+ * independent — a failure in one engine never short-circuits the
+ * others (its summary just carries the per-query errors as usual).
+ */
+export async function runCheckMulti(
+  opts: RunCheckMultiOptions
+): Promise<MultiEngineCheckReport> {
+  if (opts.engines.length === 0) {
+    throw new Error("runCheckMulti requires at least one engine");
+  }
+  const perEngineReports = await Promise.all(
+    opts.engines.map((engine) =>
+      runCheck({
+        domain: opts.domain,
+        queries: opts.queries,
+        engine,
+        concurrency: opts.concurrency,
+      })
+    )
+  );
+
+  const perEngine: Record<string, CheckReport> = {};
+  for (const r of perEngineReports) perEngine[r.engine] = r;
+
+  // Build the per-query union roll-up — input order preserved.
+  const acrossEngines: AcrossEngineQueryRow[] = opts.queries.map((query) => {
+    const citedByEngines: string[] = [];
+    const ranByEngines: string[] = [];
+    for (const r of perEngineReports) {
+      ranByEngines.push(r.engine);
+      const row = r.results.find((res) => res.query === query);
+      if (row && row.cited) citedByEngines.push(r.engine);
+    }
+    return {
+      query,
+      citedByAny: citedByEngines.length > 0,
+      citedByEngines,
+      ranByEngines,
+    };
+  });
+
+  const totalQueries = opts.queries.length;
+  const citedByAnyCount = acrossEngines.filter((r) => r.citedByAny).length;
+  const unionCoveragePct =
+    totalQueries === 0 ? 0 : Math.round((citedByAnyCount / totalQueries) * 100);
+  const meanCoveragePct =
+    perEngineReports.length === 0
+      ? 0
+      : Math.round(
+          perEngineReports.reduce((acc, r) => acc + r.summary.coveragePct, 0) /
+            perEngineReports.length
+        );
+  const estimatedCostUsd = Number(
+    perEngineReports
+      .reduce((acc, r) => acc + r.summary.estimatedCostUsd, 0)
+      .toFixed(6)
+  );
+
+  return {
+    domain: opts.domain,
+    engines: perEngineReports.map((r) => r.engine),
+    skippedEngines: [],
+    perEngine,
+    acrossEngines,
+    summary: {
+      totalQueries,
+      citedByAnyCount,
+      unionCoveragePct,
+      meanCoveragePct,
+      estimatedCostUsd,
     },
     generatedBy: GENERATED_BY,
   };

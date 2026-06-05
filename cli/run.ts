@@ -1,6 +1,14 @@
 /* eslint-disable no-console */
 import { readFile, writeFile } from "node:fs/promises";
-import { createEngine, runCheck, type EngineName } from "./check";
+import {
+  ALL_ENGINE_NAMES,
+  ENGINE_ENV_VARS,
+  createEngine,
+  engineHasCredentials,
+  runCheck,
+  runCheckMulti,
+  type EngineName,
+} from "./check";
 import {
   renderReport,
   renderSitemapReport,
@@ -14,7 +22,12 @@ import {
   runWrite,
 } from "./write";
 import { renderFixHuman, renderFixJson, runFix, type FixCliFlags } from "./fix";
-import { renderCheckHuman, renderCheckJson } from "./render";
+import {
+  renderCheckHuman,
+  renderCheckJson,
+  renderMultiCheckHuman,
+  renderMultiCheckJson,
+} from "./render";
 import type { LlmProvider, ProviderId } from "./llm";
 import type { ResourceAuthor } from "../core/schema";
 
@@ -98,13 +111,23 @@ check flags:
   --domain <d>            Bare host (shadow.inc) or full origin. Required.
   --query <text>          Target query (repeatable)
   --queries-file <path>   Newline-separated file of queries
-  --engine <name>         perplexity (default), openai (stub)
+  --engine <name>         perplexity (default), openai, anthropic, gemini,
+                          xai (alias: grok), all
   --model <name>          Engine-specific model (default sonar for perplexity)
   --concurrency N         Parallel queries (default 2)
   --json                  Machine-readable output
   --out <path>            Also write full report to this path
 
-  Env: PERPLEXITY_API_KEY (perplexity), OPENAI_API_KEY (openai)
+  Engine env vars:
+    perplexity → PERPLEXITY_API_KEY
+    openai     → OPENAI_API_KEY
+    anthropic  → ANTHROPIC_API_KEY
+    gemini     → GOOGLE_API_KEY (or GEMINI_API_KEY)
+    xai/grok   → XAI_API_KEY
+
+  --engine all runs every engine whose API key is present in env, and
+  reports per-engine coverage plus a union roll-up.
+
   Exit code: 0 if coverage > 0%, 1 if 0%.
 
 Docs: https://github.com/shadowresearch/auto-geo
@@ -758,22 +781,84 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
     return 2;
   }
 
-  const engineName = parsed.engine;
-  if (engineName === "all") {
-    // TODO: enable when openai engine is fully implemented
+  // Normalize the engine selector: accept aliases and `all`.
+  const rawEngine = parsed.engine.toLowerCase();
+  const engineName = rawEngine === "grok" ? "xai" : rawEngine;
+  const validSingles = new Set<string>(ALL_ENGINE_NAMES);
+
+  if (engineName !== "all" && !validSingles.has(engineName)) {
     console.error(
-      "auto-geo check: --engine all is reserved for a future release once the OpenAI adapter ships. Use --engine perplexity for now."
-    );
-    return 2;
-  }
-  if (engineName !== "perplexity" && engineName !== "openai") {
-    console.error(
-      `auto-geo check: unknown --engine ${engineName}. Supported: perplexity, openai (stub).`
+      `auto-geo check: unknown --engine ${parsed.engine}. Valid: perplexity, openai, anthropic, gemini, xai (grok), all`
     );
     return 2;
   }
 
   try {
+    if (engineName === "all") {
+      // Collect every engine whose primary env var is set. Skip the
+      // rest with a reason so the user sees why an engine was excluded.
+      const enabled: EngineName[] = [];
+      const skipped: Array<{ engine: string; reason: string }> = [];
+      for (const e of ALL_ENGINE_NAMES) {
+        if (engineHasCredentials(e)) enabled.push(e);
+        else
+          skipped.push({
+            engine: e,
+            reason: `${ENGINE_ENV_VARS[e]} not set`,
+          });
+      }
+      if (enabled.length === 0) {
+        console.error(
+          `auto-geo check: --engine all needs at least one API key set. Looked for: ${ALL_ENGINE_NAMES.map(
+            (e) => ENGINE_ENV_VARS[e]
+          ).join(", ")}.`
+        );
+        return 2;
+      }
+
+      const engines = enabled.map((name) =>
+        createEngine(name, { model: parsed.model })
+      );
+      const report = await runCheckMulti({
+        domain: parsed.domain,
+        queries,
+        engines,
+        concurrency: parsed.concurrency,
+      });
+      report.skippedEngines = skipped;
+
+      const out = parsed.json
+        ? renderMultiCheckJson(report)
+        : renderMultiCheckHuman(report, {
+            colors,
+            narrow: parsed.narrow,
+          });
+      console.log(out);
+
+      if (parsed.out) {
+        try {
+          await writeFile(parsed.out, renderMultiCheckJson(report), "utf8");
+        } catch (err) {
+          console.error(
+            `auto-geo check: warning — could not write --out ${parsed.out}: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+
+      return report.summary.unionCoveragePct > 0 ? 0 : 1;
+    }
+
+    // Single-engine path. Fail fast if the user explicitly named an
+    // engine whose key isn't set — better than letting the adapter
+    // throw an opaque error mid-run.
+    if (!engineHasCredentials(engineName as EngineName)) {
+      const envVar = ENGINE_ENV_VARS[engineName as EngineName];
+      console.error(
+        `auto-geo check: --engine ${engineName} requires ${envVar} to be set in the environment.`
+      );
+      return 2;
+    }
+
     const engine = createEngine(engineName as EngineName, {
       model: parsed.model,
     });
