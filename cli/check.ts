@@ -280,16 +280,25 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
   // loop. Each worker pulls the next index and writes its result into
   // the pre-sized array, preserving input order in the final report.
   let cursor = 0;
+  // Deterministic deadline check — relying on the `runtimeExceeded`
+  // boolean alone races against the macrotask queue when a query
+  // completes at the same tick as the setTimeout callback fires. Add
+  // an explicit `Date.now()` clamp so the check resolves without
+  // depending on event-loop ordering. Observed flake on Node 22 CI.
+  const isPastDeadline = (): boolean =>
+    runtimeExceeded ||
+    (maxRuntimeMs !== undefined && Date.now() - startedAt >= maxRuntimeMs);
+
   async function worker(): Promise<void> {
     while (true) {
-      if (runtimeExceeded) return;
+      if (isPastDeadline()) return;
       const i = cursor++;
       if (i >= total) return;
       const query = opts.queries[i]!;
       const result = await runOneQuery(opts.engine, query, normalizedDomain, {
         timeoutMs,
         maxRetries,
-        isRuntimeExceeded: () => runtimeExceeded,
+        isRuntimeExceeded: isPastDeadline,
         runtimeDeadlineMs:
           maxRuntimeMs === undefined ? undefined : startedAt + maxRuntimeMs,
       });
