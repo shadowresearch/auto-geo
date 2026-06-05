@@ -893,16 +893,23 @@ describe("runCheck — retry on transient failures", () => {
 
 describe("runCheck — maxRuntimeSec", () => {
   it("marks pending queries as skipped when the deadline trips", async () => {
-    // First query takes 50ms, second would take 200ms, deadline at 100ms.
+    // Generous timing margins so the test stays stable on slow CI
+    // runners: q1 is a fast 10ms; q2 is a long 2s; deadline at 300ms.
+    // q1 always completes well within the deadline; q2 always blows
+    // through it; q3 is never started.
     let n = 0;
     const engine = {
       name: "slow",
       model: "x",
       async askWithCitations() {
         n += 1;
-        const delay = n === 1 ? 30 : 500;
+        const delay = n === 1 ? 10 : 2000;
         await new Promise((r) => setTimeout(r, delay));
-        return { answer: "", citations: sources("https://shadow.inc/p") };
+        return {
+          answer: "",
+          citations: sources("https://shadow.inc/p"),
+          fanOutQueries: [],
+        };
       },
     };
     const seen: CheckQueryResult[] = [];
@@ -913,7 +920,7 @@ describe("runCheck — maxRuntimeSec", () => {
       concurrency: 1, // serialize so we hit the deadline mid-run
       timeoutPerQuerySec: 60,
       maxRetries: 0,
-      maxRuntimeSec: 0.1, // 100ms
+      maxRuntimeSec: 0.3, // 300ms — plenty of margin for q1 + deadline tick
       onResult: (r) => seen.push(r),
     });
     // a completes; b times out via the runtime-deadline cap on its
