@@ -28,6 +28,14 @@ import {
   renderMultiCheckHuman,
   renderMultiCheckJson,
 } from "./render";
+import {
+  type CommandName,
+  getPackageVersion,
+  renderCommandHelp,
+  renderGlobalHelp,
+  renderHelpPointer,
+  renderVersion,
+} from "./help";
 import type { LlmProvider, ProviderId } from "./llm";
 import type { ResourceAuthor } from "../core/schema";
 
@@ -51,102 +59,20 @@ import type { ResourceAuthor } from "../core/schema";
  * the dispatcher.
  */
 
-const USAGE = `auto-geo — GEO publishing engine CLI
-
-Usage:
-  auto-geo doctor <url>                Audit a page for citation readiness
-  auto-geo doctor --site <sitemap>     Audit every URL in an XML sitemap
-  auto-geo fix <url>                   LLM-driven GEO rewrite of an existing page
-  auto-geo write --domain <url> --query <q> [...]
-                                       Generate resource pages from queries
-  auto-geo check --domain <d> --query <q> [...]
-                                       Measure if AI engines cite your domain
-  auto-geo --help                      Show this message
-
-doctor flags:
-  --json           Emit machine-readable JSON
-  --no-color       Disable ANSI colors and box-drawing glyphs
-  --narrow         Tighten layout for <80 col terminals (auto-detected)
-  --max-pages N    Cap pages audited from --site mode (default 100)
-  --concurrency N  Concurrent fetches in --site mode (default 5)
-
-  Exit code: 0 if score ≥ 75%, 1 otherwise.
-
-fix flags:
-  --out <path>            Output file (default ./fixed.json)
-  --provider openai|anthropic    LLM provider (default openai)
-  --model <name>          Model (default gpt-4o-mini)
-  --max-retries N         Self-correction retries on schema fail (default 2)
-  --dry-run               Fetch + audit + estimate cost, skip LLM call
-  --json                  Emit machine-readable JSON
-  --basepath <path>       Publish base path for URL preview (default /resources)
-  --author-name <text>    Author name (propagated into payload)
-  --author-jobtitle <t>   Author job title
-  --author-bio <text>     Author bio (≥20 chars; required by the schema)
-  --author-linkedin <url> Author LinkedIn URL (optional)
-
-  Env: OPENAI_API_KEY (openai), ANTHROPIC_API_KEY (anthropic)
-  Exit code: 0 on success, 1 on failure.
-
-write flags:
-  --domain <url>          Publisher domain (required)
-  --query <text>          Target query (required, repeatable)
-  --queries-file <path>   Newline-separated file of queries
-  --out <dir>             Output directory (default ./out)
-  --provider openai|anthropic    LLM provider (default openai)
-  --model <name>          Model (default gpt-4o-mini / claude-sonnet-4-6)
-  --basepath <path>       Resource URL path (default /resources)
-  --author-name <text>    Author name (default Shadow Research)
-  --author-jobtitle <t>   Author job title
-  --author-bio <text>     Author bio (text or @path-to-bio.txt)
-  --author-linkedin <url> Author LinkedIn URL
-  --max-retries N         Schema-validation retries (default 2)
-  --concurrency N         Parallel LLM calls (default 2)
-  --dry-run               Show plan + cost estimate, no LLM calls
-  --json                  Machine-readable summary
-
-  Env: OPENAI_API_KEY (openai), ANTHROPIC_API_KEY (anthropic)
-
-check flags:
-  --domain <d>            Bare host (shadow.inc) or full origin. Required.
-  --query <text>          Target query (repeatable)
-  --queries-file <path>   Newline-separated file of queries
-  --engine <name>         perplexity (default), openai, anthropic, gemini,
-                          xai (alias: grok), all
-  --model <name>          Engine-specific model (default sonar for perplexity)
-  --concurrency N         Parallel queries (default 6)
-  --answers <mode>        Render the engine's answer under each query in
-                          human output: none, preview (default, ~3 sentences),
-                          or full. Ignored under --json / --ndjson.
-  --json                  One single JSON object on stdout when the run completes
-  --ndjson                Stream one JSON object per line to stdout AS each
-                          query resolves; final line is the summary tagged
-                          {"_summary":true,…}. Mutually exclusive with --json.
-                          Use this for piping into agents / dashboards on big
-                          runs (50+ queries).
-  --timeout-per-query N   Per-query outer timeout in seconds (default 60).
-                          A query that exceeds this is marked errored; the
-                          rest of the run continues.
-  --max-runtime N         Whole-run timeout in seconds (default: no cap).
-                          When exceeded, remaining queries are marked
-                          skipped, partial results are still emitted, and
-                          the process exits with code 2.
-  --out <path>            Also write full report to this path
-
-  Engine env vars:
-    perplexity → PERPLEXITY_API_KEY
-    openai     → OPENAI_API_KEY
-    anthropic  → ANTHROPIC_API_KEY
-    gemini     → GOOGLE_API_KEY (or GEMINI_API_KEY)
-    xai/grok   → XAI_API_KEY
-
-  --engine all runs every engine whose API key is present in env, and
-  reports per-engine coverage plus a union roll-up.
-
-  Exit code: 0 if coverage > 0%, 1 if 0%, 2 if --max-runtime tripped.
-
-Docs: https://github.com/shadowresearch/auto-geo
-`;
+/**
+ * Help rendering moved to `cli/help.ts` in v0.4.2 — the prior
+ * monolithic USAGE constant blew up on narrow terminals (wrap mangled
+ * `--domain <d>` into `--doin <d>`, etc). The renderers there emit
+ * focused per-command help and a compact global help.
+ *
+ * `getHelpForError(command?)`: small one-shot helper for the
+ * "missing required arg" path. Returns the short pointer line for the
+ * given subcommand, or the bare reminder when called without a command.
+ */
+function getHelpForError(command?: CommandName): string {
+  if (!command) return "Run 'auto-geo --help' to see available commands.";
+  return renderHelpPointer(command);
+}
 
 // ── Parsed-args types ─────────────────────────────────────────────
 
@@ -227,6 +153,8 @@ export type CheckArgs = {
 
 export type HelpArgs = {
   command: "help";
+  /** Which subcommand's help to show, or `undefined` for global help. */
+  topic?: CommandName;
   // Carry the json + color + narrow flags so the help path is
   // consistent with the rest of the parser; not used by callers.
   json: boolean;
@@ -234,22 +162,73 @@ export type HelpArgs = {
   narrow: boolean;
 };
 
+export type VersionArgs = {
+  command: "version";
+};
+
 export type ParsedArgs =
   | DoctorArgs
   | FixArgs
   | WriteArgs
   | CheckArgs
-  | HelpArgs;
+  | HelpArgs
+  | VersionArgs;
 
 // ── Dispatcher ────────────────────────────────────────────────────
 
+const SUBCOMMANDS = new Set<CommandName>(["doctor", "fix", "write", "check"]);
+
+function isSubcommand(s: string | undefined): s is CommandName {
+  return !!s && SUBCOMMANDS.has(s as CommandName);
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
-  // Surface --help fast — works at any position, before subcommand.
-  if (argv.includes("--help") || argv.includes("-h")) {
+  // Bare invocation → global help (was: doctor with missing URL).
+  if (argv.length === 0) {
     return { command: "help", json: false, color: true, narrow: false };
   }
 
+  // Version flags — must beat --help so `--version --help` is a no-op
+  // and `auto-geo -v` is fast.
+  if (argv[0] === "--version" || argv[0] === "-v") {
+    return { command: "version" };
+  }
+
   const first = argv[0];
+
+  // `auto-geo help [<cmd>]` — common convention.
+  if (first === "help") {
+    const topic = argv[1];
+    if (isSubcommand(topic)) {
+      return {
+        command: "help",
+        topic,
+        json: false,
+        color: true,
+        narrow: false,
+      };
+    }
+    return { command: "help", json: false, color: true, narrow: false };
+  }
+
+  // Global `--help` / `-h` (no subcommand) → global help.
+  if (first === "--help" || first === "-h") {
+    return { command: "help", json: false, color: true, narrow: false };
+  }
+
+  // `<cmd> --help` / `<cmd> -h` → focused per-command help. Catch it
+  // here rather than letting each subcommand parser handle a flag —
+  // keeps the per-command parsers focused on their flag set.
+  if (isSubcommand(first) && (argv[1] === "--help" || argv[1] === "-h")) {
+    return {
+      command: "help",
+      topic: first,
+      json: false,
+      color: true,
+      narrow: false,
+    };
+  }
+
   if (first === "write") return parseWriteArgs(argv.slice(1));
   if (first === "fix") return parseFixArgs(argv.slice(1));
   if (first === "check") return parseCheckArgs(argv.slice(1));
@@ -521,27 +500,61 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
   return args;
 }
 
+/**
+ * @deprecated The monolithic USAGE constant was removed in v0.4.2 in
+ * favor of focused per-command help. Kept as a thin shim that returns
+ * the global help string so any external integration still gets a
+ * sensible value, and so a 0.4.1-era consumer doesn't crash.
+ */
 export function getUsage(): string {
-  return USAGE;
+  return renderGlobalHelp({ colors: false });
 }
 
 // ── Entry ─────────────────────────────────────────────────────────
 
+/**
+ * Infer which subcommand the user was trying to invoke from the raw
+ * argv, even when parsing threw before producing a typed result. Used
+ * to scope the "Run 'auto-geo <cmd> --help' to see available flags."
+ * pointer printed after an arg-parse error.
+ */
+function inferCommandFromArgv(argv: string[]): CommandName | undefined {
+  const first = argv[0];
+  if (isSubcommand(first)) return first;
+  return undefined;
+}
+
 export async function run(argv: string[]): Promise<number> {
+  // Pre-resolve the package version so renderers can include it
+  // synchronously (they're called from many sites). Cheap — one read,
+  // cached for the lifetime of the process.
+  await getPackageVersion();
+
   let parsed: ParsedArgs;
   try {
     parsed = parseArgs(argv);
   } catch (err) {
+    const cmd = inferCommandFromArgv(argv);
     console.error(
       `auto-geo: ${err instanceof Error ? err.message : String(err)}`
     );
-    console.error("");
-    console.error(USAGE);
+    console.error(getHelpForError(cmd));
     return 2;
   }
 
   if (parsed.command === "help") {
-    console.log(USAGE);
+    // Respect NO_COLOR + non-TTY pipes for help output, same gate as
+    // every other human renderer in the CLI.
+    const colors = shouldUseColor(true, false);
+    if (parsed.topic) {
+      console.log(renderCommandHelp(parsed.topic, { colors }));
+    } else {
+      console.log(renderGlobalHelp({ colors }));
+    }
+    return 0;
+  }
+  if (parsed.command === "version") {
+    console.log(await renderVersion());
     return 0;
   }
   if (parsed.command === "doctor") return runDoctorCommand(parsed);
@@ -550,7 +563,7 @@ export async function run(argv: string[]): Promise<number> {
   if (parsed.command === "check") return runCheckCommand(parsed);
 
   // Exhaustive check.
-  console.error(USAGE);
+  console.error(renderGlobalHelp({ colors: false }));
   return 2;
 }
 
@@ -559,8 +572,8 @@ export async function run(argv: string[]): Promise<number> {
 async function runDoctorCommand(parsed: DoctorArgs): Promise<number> {
   if (parsed.site) return runSiteMode(parsed);
   if (parsed.url) return runSingleMode(parsed);
-  console.error("auto-geo: missing URL argument\n");
-  console.error(USAGE);
+  console.error("auto-geo: missing URL argument");
+  console.error(getHelpForError("doctor"));
   return 2;
 }
 
@@ -641,8 +654,8 @@ async function runFixCommand(parsed: FixArgs): Promise<number> {
   const colors = shouldUseColor(parsed.color, parsed.json);
 
   if (!parsed.url) {
-    console.error("auto-geo fix: missing URL argument\n");
-    console.error(USAGE);
+    console.error("auto-geo fix: missing URL argument");
+    console.error(getHelpForError("fix"));
     return 2;
   }
 
@@ -696,8 +709,8 @@ async function runWriteCommand(parsed: WriteArgs): Promise<number> {
 
   // Resolve domain + queries.
   if (!parsed.domain) {
-    console.error("auto-geo write: --domain is required\n");
-    console.error(USAGE);
+    console.error("auto-geo write: --domain is required");
+    console.error(getHelpForError("write"));
     return 2;
   }
   if (!/^https?:\/\//.test(parsed.domain)) {
@@ -726,9 +739,9 @@ async function runWriteCommand(parsed: WriteArgs): Promise<number> {
   }
   if (queries.length === 0) {
     console.error(
-      "auto-geo write: at least one --query (or --queries-file) is required\n"
+      "auto-geo write: at least one --query (or --queries-file) is required"
     );
-    console.error(USAGE);
+    console.error(getHelpForError("write"));
     return 2;
   }
 
@@ -806,8 +819,8 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
   const colors = shouldUseColor(parsed.color, parsed.json || parsed.ndjson);
 
   if (!parsed.domain) {
-    console.error("auto-geo check: --domain is required\n");
-    console.error(USAGE);
+    console.error("auto-geo check: --domain is required");
+    console.error(getHelpForError("check"));
     return 2;
   }
 
@@ -832,9 +845,9 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
 
   if (queries.length === 0) {
     console.error(
-      "auto-geo check: at least one --query or --queries-file is required\n"
+      "auto-geo check: at least one --query or --queries-file is required"
     );
-    console.error(USAGE);
+    console.error(getHelpForError("check"));
     return 2;
   }
 
