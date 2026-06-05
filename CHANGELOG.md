@@ -8,6 +8,27 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-06-04
+
+### Added
+
+- **`auto-geo check` shows the LLM's answer alongside citations.** New `--answers <none|preview|full>` flag (default `preview` — first ~3 sentences, ~400 chars, word-wrapped under each query with a `│ ` blockquote prefix). `full` renders the entire response, `none` matches v0.4.0 behavior. The answer was always captured in JSON output; it's now visible in human mode too — the most interesting signal alongside the citation list because it shows HOW each engine represents the domain.
+- **`--ndjson` streaming output for check.** Emits one JSON line per query as it completes (in completion order, not request order), plus a final `_summary` line. Designed for agents driving long runs: pipe to `jq` for live progress, `tail -n 1 | jq` for the rollup. Mutually exclusive with `--json` (one is per-line stream, one is single object). Per-line shape: `{ query, cited, citations, rawSources, answer, usage, timestamp, error? }`.
+- **`--timeout-per-query <seconds>` flag** (default 60s). Outer timeout per query; sits above adapter HTTP timeouts; aborted queries become `error: "timed out after Ns"` and the rest of the run continues.
+- **`--max-runtime <seconds>` flag** (optional). Whole-run timeout. When tripped, remaining queries are marked `error: "skipped — max runtime exceeded"` and process exits 2. CI-friendly cap.
+- **Exponential-backoff retry on 429/5xx/network/timeout** — 2 attempts max, 1s then 4s. 4xx errors never retried (those are config bugs that won't fix themselves).
+- **Live progress to stderr in human mode** — `[12/50] ✓ "what is GEO" — cited (3 sources)` per query as they complete. Stderr keeps stdout pipe-clean for piping the report.
+- 389 → 411 tests (+22).
+
+### Changed
+
+- **Default `--concurrency` for check bumped from 2 to 6.** Safe for every engine's documented rate limit at default models. The flag stays — lower for restrictive accounts, raise for high-tier API plans.
+- Help text in `--help` USAGE block now documents every check flag including the new ones.
+
+### Why
+
+A peer agent driving auto-geo for a 50-prompt sweep timed out repeatedly even when splitting to 25, 10, and 5 batches. Root causes: low default concurrency (2), no streaming output (silent during the long run), no per-query timeout, and no progress signal. With concurrency 6 + NDJSON + per-query timeout, a 50-query run on Perplexity now completes in roughly `(50 × ~8s) / 6 = ~67s` instead of timing out.
+
 ## [0.4.0] — 2026-06-04
 
 ### Added — four new `auto-geo check` engines + `--engine all` rollup
@@ -161,7 +182,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/shadowresearch/auto-geo/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/shadowresearch/auto-geo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/shadowresearch/auto-geo/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/shadowresearch/auto-geo/compare/v0.2.2...v0.2.3
