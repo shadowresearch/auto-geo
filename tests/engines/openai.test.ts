@@ -3,6 +3,7 @@ import {
   createOpenAIEngine,
   extractOpenAIAnswer,
   parseOpenAICitations,
+  parseOpenAIFanOutQueries,
 } from "../../cli/engines/openai";
 import { hostnameMatchesDomain } from "../../cli/check";
 import { openaiSampleResponse } from "../fixtures/engines/openai-response";
@@ -71,6 +72,28 @@ describe("createOpenAIEngine", () => {
   it("concatenates output_text chunks for the answer", () => {
     const ans = extractOpenAIAnswer(openaiSampleResponse);
     expect(ans).toContain("generative engine optimization");
+  });
+
+  it("extracts fan-out queries from web_search_call items and dedupes", async () => {
+    // The fixture carries 3 web_search_call items; one is a duplicate
+    // of the first — the parser must order-preserve and dedupe.
+    expect(parseOpenAIFanOutQueries(openaiSampleResponse)).toEqual([
+      "what is GEO",
+      "generative engine optimization",
+    ]);
+    const engine = createOpenAIEngine({
+      apiKey: "sk-test",
+      fetch: (async () =>
+        new Response(JSON.stringify(openaiSampleResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as typeof globalThis.fetch,
+    });
+    const res = await engine.askWithCitations("q");
+    expect(res.fanOutQueries).toEqual([
+      "what is GEO",
+      "generative engine optimization",
+    ]);
   });
 
   it("computes cost from input/output tokens + per-search fee", async () => {

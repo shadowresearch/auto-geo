@@ -62,10 +62,19 @@ export type EngineUsage = {
  * `answer` is the engine's natural-language synthesis. We don't use it
  * for scoring (we only score on citations) but we surface it in `--json`
  * output so consumers can inspect what the engine actually said.
+ *
+ * `fanOutQueries` are the sub-queries the engine ran to ground its
+ * answer (e.g. Gemini's `webSearchQueries`, Anthropic's `web_search`
+ * tool calls, OpenAI Responses-API `web_search_call` items). When an
+ * engine doesn't expose its grounding queries publicly (xAI Live Search
+ * as of mid-2026), the adapter returns an empty array. Always present —
+ * adapters MUST return `[]` rather than omit the field — so downstream
+ * consumers can treat it as a non-nullable array.
  */
 export type EngineResponse = {
   answer: string;
   citations: CitedSource[];
+  fanOutQueries: string[];
   usage?: EngineUsage;
 };
 

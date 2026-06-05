@@ -3,6 +3,7 @@ import {
   createAnthropicEngine,
   extractAnthropicAnswer,
   parseAnthropicCitations,
+  parseAnthropicFanOutQueries,
 } from "../../cli/engines/anthropic";
 import { hostnameMatchesDomain } from "../../cli/check";
 import { anthropicSampleResponse } from "../fixtures/engines/anthropic-response";
@@ -81,6 +82,26 @@ describe("createAnthropicEngine", () => {
     const out = extractAnthropicAnswer(anthropicSampleResponse);
     expect(out).toContain("Generative engine optimization");
     expect(out).toContain("I'll search for"); // first text block preserved
+  });
+
+  it("extracts fan-out queries from server_tool_use blocks (web_search)", async () => {
+    expect(parseAnthropicFanOutQueries(anthropicSampleResponse)).toEqual([
+      "what is generative engine optimization",
+      "GEO best practices for AI search",
+    ]);
+    const engine = createAnthropicEngine({
+      apiKey: "sk-test",
+      fetch: (async () =>
+        new Response(JSON.stringify(anthropicSampleResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as typeof globalThis.fetch,
+    });
+    const res = await engine.askWithCitations("q");
+    expect(res.fanOutQueries).toEqual([
+      "what is generative engine optimization",
+      "GEO best practices for AI search",
+    ]);
   });
 
   it("computes cost from per-token rates + per-search fee", async () => {

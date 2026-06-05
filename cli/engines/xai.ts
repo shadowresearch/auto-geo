@@ -123,8 +123,14 @@ export function createXAIEngine(opts: EngineFactoryOptions = {}): Engine {
       const data = (await res.json()) as XAIChatResponse;
       const answer = data.choices?.[0]?.message?.content ?? "";
       const citations = parseXAICitations(data);
+      // xAI's chat-completions Live Search does not expose the literal
+      // sub-queries it issued in its public response shape (as of
+      // mid-2026). We always return [] here — when xAI surfaces them
+      // upstream (e.g. by promoting `search_actions` to GA), wire them
+      // in via a `parseXAIFanOutQueries` helper.
+      const fanOutQueries: string[] = [];
       const usage = estimateUsage(model, data.usage, citations.length);
-      return { answer, citations, usage };
+      return { answer, citations, fanOutQueries, usage };
     },
   };
 }

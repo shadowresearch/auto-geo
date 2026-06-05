@@ -3,6 +3,7 @@ import {
   createGeminiEngine,
   extractGeminiAnswer,
   parseGeminiCitations,
+  parseGeminiFanOutQueries,
 } from "../../cli/engines/gemini";
 import { hostnameMatchesDomain } from "../../cli/check";
 import { geminiSampleResponse } from "../fixtures/engines/gemini-response";
@@ -76,6 +77,26 @@ describe("createGeminiEngine", () => {
   it("extracts the synthesized answer from candidates[0].content.parts", () => {
     const ans = extractGeminiAnswer(geminiSampleResponse);
     expect(ans).toContain("Generative engine optimization");
+  });
+
+  it("extracts fan-out queries from groundingMetadata.webSearchQueries", async () => {
+    expect(parseGeminiFanOutQueries(geminiSampleResponse)).toEqual([
+      "what is GEO",
+      "generative engine optimization",
+    ]);
+    const engine = createGeminiEngine({
+      apiKey: "AIza-test",
+      fetch: (async () =>
+        new Response(JSON.stringify(geminiSampleResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as typeof globalThis.fetch,
+    });
+    const res = await engine.askWithCitations("q");
+    expect(res.fanOutQueries).toEqual([
+      "what is GEO",
+      "generative engine optimization",
+    ]);
   });
 
   it("computes cost from usageMetadata + per-grounded-request fee", async () => {

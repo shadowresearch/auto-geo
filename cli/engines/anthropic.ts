@@ -74,6 +74,9 @@ export type AnthropicMessageResponse = {
   content?: Array<{
     type?: string;
     text?: string;
+    /** `server_tool_use` blocks carry the literal sub-query Claude ran. */
+    name?: string;
+    input?: { query?: string };
     citations?: Array<{
       type?: string; // "web_search_result_location"
       url?: string;
@@ -157,10 +160,34 @@ export function createAnthropicEngine(
       const data = (await res.json()) as AnthropicMessageResponse;
       const answer = extractAnthropicAnswer(data);
       const citations = parseAnthropicCitations(data);
+      const fanOutQueries = parseAnthropicFanOutQueries(data);
       const usage = estimateUsage(model, data.usage);
-      return { answer, citations, usage };
+      return { answer, citations, fanOutQueries, usage };
     },
   };
+}
+
+/**
+ * Walk `content[]` for `server_tool_use` blocks whose `name` is
+ * `"web_search"`, collecting each call's `input.query`. Claude can
+ * invoke the search tool more than once per message; we preserve order
+ * (matches the order the model issued them) and dedupe.
+ */
+export function parseAnthropicFanOutQueries(
+  data: AnthropicMessageResponse
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const block of data.content ?? []) {
+    if (block.type !== "server_tool_use") continue;
+    if (block.name !== "web_search") continue;
+    const q = block.input?.query;
+    if (typeof q !== "string" || !q) continue;
+    if (seen.has(q)) continue;
+    seen.add(q);
+    out.push(q);
+  }
+  return out;
 }
 
 /**

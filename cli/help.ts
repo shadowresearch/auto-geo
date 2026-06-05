@@ -427,7 +427,8 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
         items: [
           {
             flag: "--concurrency N",
-            description: "Parallel queries (default 6)",
+            description:
+              "Parallel queries per engine (default 12; recommended cap ~20)",
           },
           {
             flag: "--timeout-per-query N",
@@ -450,6 +451,11 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
             flag: "--ndjson",
             description:
               "Per-line streaming (one JSON per query + a _summary line)",
+          },
+          {
+            flag: "--format <id>",
+            description:
+              "auto-geo (default) | geo-audit (LlmQueryResult shape for parity with Shadow's in-product geoAudit tool)",
           },
           {
             flag: "--answers <mode>",

@@ -61,6 +61,14 @@ export type OpenAIResponsesOutput = {
   output?: Array<{
     type?: string;
     role?: string;
+    /**
+     * `web_search_call` items carry the literal sub-query the model
+     * issued — surfaced via an `action: { type: "search", query }`
+     * object on each call. Some Responses-API shapes also surface a
+     * top-level `query` directly; we accept either.
+     */
+    action?: { type?: string; query?: string };
+    query?: string;
     content?: Array<{
       type?: string;
       text?: string;
@@ -120,10 +128,33 @@ export function createOpenAIEngine(opts: EngineFactoryOptions = {}): Engine {
       const data = (await res.json()) as OpenAIResponsesOutput;
       const answer = extractOpenAIAnswer(data);
       const citations = parseOpenAICitations(data);
+      const fanOutQueries = parseOpenAIFanOutQueries(data);
       const usage = estimateUsage(model, data.usage);
-      return { answer, citations, usage };
+      return { answer, citations, fanOutQueries, usage };
     },
   };
+}
+
+/**
+ * Walk `output[]` for `web_search_call` items and collect the literal
+ * sub-query each call ran. The Responses API surfaces the query under
+ * `action.query` for the standard shape; a few examples surface a flat
+ * `query` field directly — we accept either. Order preserved, deduped.
+ */
+export function parseOpenAIFanOutQueries(
+  data: OpenAIResponsesOutput
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of data.output ?? []) {
+    if (item.type !== "web_search_call") continue;
+    const q = item.action?.query ?? item.query;
+    if (typeof q !== "string" || !q) continue;
+    if (seen.has(q)) continue;
+    seen.add(q);
+    out.push(q);
+  }
+  return out;
 }
 
 /**

@@ -58,6 +58,12 @@ type PerplexityResponse = {
    * it over the bare `citations` array because it gives us titles.
    */
   search_results?: Array<{ title?: string; url?: string; date?: string }>;
+  /**
+   * `search_queries` is exposed on some newer Sonar response shapes —
+   * the literal queries Perplexity expanded the user prompt into during
+   * its web search. Captured when present; never required.
+   */
+  search_queries?: string[];
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
@@ -113,10 +119,25 @@ export function createPerplexityEngine(
       const data = (await res.json()) as PerplexityResponse;
       const answer = data.choices?.[0]?.message?.content ?? "";
       const citations = normalizeCitations(data);
+      const fanOutQueries = parsePerplexityFanOutQueries(data);
       const usage = estimateUsage(model, data.usage);
-      return { answer, citations, usage };
+      return { answer, citations, fanOutQueries, usage };
     },
   };
+}
+
+/**
+ * Capture the literal sub-queries Sonar ran when present. Older Sonar
+ * tiers don't surface them — return `[]` rather than throw so the
+ * adapter remains forward-compatible.
+ */
+export function parsePerplexityFanOutQueries(
+  data: PerplexityResponse
+): string[] {
+  if (!Array.isArray(data.search_queries)) return [];
+  return data.search_queries.filter(
+    (q): q is string => typeof q === "string" && q.length > 0
+  );
 }
 
 /**

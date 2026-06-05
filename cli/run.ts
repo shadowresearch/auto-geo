@@ -29,6 +29,11 @@ import {
   renderMultiCheckJson,
 } from "./render";
 import {
+  makeNdjsonGeoAuditLine,
+  toGeoAuditOutput,
+  toGeoAuditOutputMulti,
+} from "./format-geo-audit";
+import {
   type CommandName,
   getPackageVersion,
   renderCommandHelp,
@@ -145,6 +150,16 @@ export type CheckArgs = {
    *   - `"none"`: suppress (matches v0.4.0 behavior)
    */
   answers: "none" | "preview" | "full";
+  /**
+   * Output shape for `--json` / `--ndjson`:
+   *   - `"auto-geo"` (default): the stable `CheckReport` /
+   *     `MultiEngineCheckReport` shape — byte-identical to v0.4.2.
+   *   - `"geo-audit"`: per-query rows mapped to Shadow's in-product
+   *     `geoAudit` tool's `LlmQueryResult` shape (see
+   *     `cli/format-geo-audit.ts`). Human output is unchanged in either
+   *     mode — this is purely a JSON-shape switch.
+   */
+  format: "auto-geo" | "geo-audit";
   timeoutPerQuerySec?: number;
   maxRuntimeSec?: number;
   color: boolean;
@@ -437,6 +452,7 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     json: false,
     ndjson: false,
     answers: "preview",
+    format: "auto-geo",
     color: true,
     narrow: false,
   };
@@ -467,6 +483,14 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
         );
       }
       args.answers = v;
+    } else if (a === "--format") {
+      const v = requireValue("--format");
+      if (v !== "auto-geo" && v !== "geo-audit") {
+        throw new Error(
+          `--format must be 'auto-geo' or 'geo-audit'; got '${v}'`
+        );
+      }
+      args.format = v;
     } else if (a === "--concurrency") {
       const n = Number(requireValue("--concurrency"));
       if (!Number.isFinite(n) || n <= 0)
@@ -868,8 +892,11 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
   // end. In human mode we print a `[i/N] ✓/✗ "query" — …` status to
   // stderr so it doesn't pollute stdout (the final report still goes
   // to stdout). Under `--json` we stay silent — that mode is "one
-  // single object, nothing else".
-  const onResult = makeOnResultHandler(parsed);
+  // single object, nothing else". Multi-engine ("--engine all") does
+  // its own per-row emission, so we don't pass engineMeta here.
+  //
+  // For single-engine mode the engineMeta is constructed once we've
+  // created the engine adapter below — see the single-engine branch.
 
   try {
     if (engineName === "all") {
@@ -909,37 +936,81 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
 
       // --ndjson streams per-engine per-query results plus a summary.
       if (parsed.ndjson) {
-        for (const engineId of report.engines) {
-          const r = report.perEngine[engineId];
-          if (!r) continue;
-          for (const result of r.results) {
-            process.stdout.write(
-              JSON.stringify(formatNdjsonResultLine(result, engineId)) + "\n"
-            );
+        if (parsed.format === "geo-audit") {
+          // geo-audit mode: emit one GeoAuditRow per query (engine ×
+          // query), then a summary line that carries BOTH the
+          // multi-engine summary (back-compat) AND the geoAudit summary
+          // fields layered on top.
+          for (const engineId of report.engines) {
+            const r = report.perEngine[engineId];
+            if (!r) continue;
+            for (const result of r.results) {
+              process.stdout.write(
+                JSON.stringify(
+                  makeNdjsonGeoAuditLine(result, {
+                    provider: engineId,
+                    model: r.model,
+                  })
+                ) + "\n"
+              );
+            }
           }
+          const ga = toGeoAuditOutputMulti(report);
+          process.stdout.write(
+            JSON.stringify({
+              _summary: true,
+              domain: report.domain,
+              engines: report.engines,
+              skippedEngines: report.skippedEngines,
+              ...report.summary,
+              acrossEngines: report.acrossEngines,
+              // GeoAudit summary fields layered on top.
+              ...ga.summary,
+            }) + "\n"
+          );
+        } else {
+          for (const engineId of report.engines) {
+            const r = report.perEngine[engineId];
+            if (!r) continue;
+            for (const result of r.results) {
+              process.stdout.write(
+                JSON.stringify(formatNdjsonResultLine(result, engineId)) + "\n"
+              );
+            }
+          }
+          process.stdout.write(
+            JSON.stringify({
+              _summary: true,
+              domain: report.domain,
+              engines: report.engines,
+              skippedEngines: report.skippedEngines,
+              ...report.summary,
+              acrossEngines: report.acrossEngines,
+            }) + "\n"
+          );
         }
-        process.stdout.write(
-          JSON.stringify({
-            _summary: true,
-            domain: report.domain,
-            engines: report.engines,
-            skippedEngines: report.skippedEngines,
-            ...report.summary,
-            acrossEngines: report.acrossEngines,
-          }) + "\n"
-        );
+      } else if (parsed.json) {
+        // --json branches on format.
+        if (parsed.format === "geo-audit") {
+          console.log(JSON.stringify(toGeoAuditOutputMulti(report), null, 2));
+        } else {
+          console.log(renderMultiCheckJson(report));
+        }
       } else {
-        const out = parsed.json
-          ? renderMultiCheckJson(report)
-          : renderMultiCheckHuman(report, {
-              colors,
-              narrow: parsed.narrow,
-            });
-        console.log(out);
+        console.log(
+          renderMultiCheckHuman(report, {
+            colors,
+            narrow: parsed.narrow,
+          })
+        );
       }
 
       if (parsed.out) {
         try {
+          // --out always writes the stable multi-engine report shape,
+          // regardless of --format. The on-disk artifact is meant to
+          // round-trip with downstream JSON consumers expecting the
+          // canonical shape.
           await writeFile(parsed.out, renderMultiCheckJson(report), "utf8");
         } catch (err) {
           console.error(
@@ -972,6 +1043,13 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
     const engine = createEngine(engineName as EngineName, {
       model: parsed.model,
     });
+    // Now that the engine is built we can wire engineMeta into the
+    // per-row hook — needed by `--format geo-audit --ndjson` so each
+    // streamed row carries the provider + model labels.
+    const onResult = makeOnResultHandler(parsed, {
+      engine: engine.name,
+      model: engine.model,
+    });
     const report = await runCheck({
       domain: parsed.domain,
       queries,
@@ -984,28 +1062,49 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
 
     if (parsed.ndjson) {
       // Streamed already via onResult — only emit the summary line.
-      process.stdout.write(
-        JSON.stringify({
-          _summary: true,
-          domain: report.domain,
-          engine: report.engine,
-          model: report.model,
-          ...report.summary,
-        }) + "\n"
-      );
+      if (parsed.format === "geo-audit") {
+        const ga = toGeoAuditOutput(report);
+        process.stdout.write(
+          JSON.stringify({
+            _summary: true,
+            domain: report.domain,
+            engine: report.engine,
+            model: report.model,
+            ...report.summary,
+            ...ga.summary,
+          }) + "\n"
+        );
+      } else {
+        process.stdout.write(
+          JSON.stringify({
+            _summary: true,
+            domain: report.domain,
+            engine: report.engine,
+            model: report.model,
+            ...report.summary,
+          }) + "\n"
+        );
+      }
+    } else if (parsed.json) {
+      if (parsed.format === "geo-audit") {
+        console.log(JSON.stringify(toGeoAuditOutput(report), null, 2));
+      } else {
+        console.log(renderCheckJson(report));
+      }
     } else {
-      const out = parsed.json
-        ? renderCheckJson(report)
-        : renderCheckHuman(report, {
-            colors,
-            narrow: parsed.narrow,
-            answer: parsed.answers,
-          });
-      console.log(out);
+      console.log(
+        renderCheckHuman(report, {
+          colors,
+          narrow: parsed.narrow,
+          answer: parsed.answers,
+        })
+      );
     }
 
     if (parsed.out) {
       try {
+        // --out always writes the stable CheckReport shape; --format is
+        // a stdout-only switch.
         await writeFile(parsed.out, renderCheckJson(report), "utf8");
       } catch (err) {
         console.error(
@@ -1061,18 +1160,40 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
  *      `[i/N] ✓/✗ "query" — …` status to stderr so 50-query runs
  *      don't go silent and force a downstream agent to give up. Under
  *      `--json` we stay silent (that mode is "one single object").
+ *
+ * `engineMeta` is required for `--format geo-audit --ndjson`, because
+ * each row needs the provider and model labels baked in. Optional in
+ * the default-format path (the default line carries them implicitly).
  */
-function makeOnResultHandler(parsed: CheckArgs) {
+function makeOnResultHandler(
+  parsed: CheckArgs,
+  engineMeta?: { engine: string; model: string }
+) {
   return function onResult(
     result: import("./check").CheckQueryResult,
     completed: number,
     total: number
   ): void {
     if (parsed.ndjson) {
-      // Stream the result to stdout.
-      process.stdout.write(
-        JSON.stringify(formatNdjsonResultLine(result)) + "\n"
-      );
+      // Stream the result to stdout — branch on --format.
+      if (parsed.format === "geo-audit") {
+        if (engineMeta) {
+          process.stdout.write(
+            JSON.stringify(
+              makeNdjsonGeoAuditLine(result, {
+                provider: engineMeta.engine,
+                model: engineMeta.model,
+              })
+            ) + "\n"
+          );
+        }
+        // No engineMeta means the caller (multi-engine path) is
+        // handling per-row emission itself with engine attribution.
+      } else {
+        process.stdout.write(
+          JSON.stringify(formatNdjsonResultLine(result)) + "\n"
+        );
+      }
       return;
     }
     if (parsed.json) return; // pure JSON mode is silent until the final object

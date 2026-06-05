@@ -15,6 +15,21 @@ export const openaiSampleResponse = {
       action: { type: "search", query: "what is GEO" },
     },
     {
+      // Second web_search_call to assert dedupe + ordering on the
+      // parsed fanOutQueries.
+      type: "web_search_call",
+      id: "ws_test_002",
+      status: "completed",
+      action: { type: "search", query: "generative engine optimization" },
+    },
+    {
+      // Duplicate of the first call — must be deduped by the parser.
+      type: "web_search_call",
+      id: "ws_test_003",
+      status: "completed",
+      action: { type: "search", query: "what is GEO" },
+    },
+    {
       type: "message",
       role: "assistant",
       status: "completed",

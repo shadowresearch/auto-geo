@@ -22,6 +22,14 @@ export const anthropicSampleResponse = {
       input: { query: "what is generative engine optimization" },
     },
     {
+      // Second invocation — preserved in order, present in
+      // fanOutQueries[1].
+      type: "server_tool_use",
+      id: "srvtoolu_test_002",
+      name: "web_search",
+      input: { query: "GEO best practices for AI search" },
+    },
+    {
       type: "web_search_tool_result",
       tool_use_id: "srvtoolu_test_001",
       content: [
