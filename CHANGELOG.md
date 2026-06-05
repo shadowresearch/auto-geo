@@ -8,6 +8,26 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-06-05
+
+### Added
+
+- **`auto-geo --version` / `-v`** — prints `auto-geo v0.4.2` and exits. Avoids the npx-cache mystery where users see stale behavior and don't know which version they're actually running.
+- **`auto-geo help <command>`** — alias for `auto-geo <command> --help` (common convention; matches `git help <cmd>`, `npm help <cmd>`).
+
+### Changed
+
+- **Help redesign.** The old 120-line `USAGE` blob is gone. Now:
+  - **`auto-geo`** (no args) → clean global help: branded header with version, one-line description per command, and pointers to per-command help.
+  - **`auto-geo <cmd> --help`** → focused per-command help. Required / queries / engines / performance / output / env vars / examples / exit code — sectioned, only that command's flags.
+  - **`auto-geo <cmd>`** without required args → short error + `Run 'auto-geo <cmd> --help' to see available flags.` (exit 2). No more whole-blob dump.
+  - **Width-resilient rendering** — flag descriptions wrap with hanging indent that stays aligned with the description column even on narrow terminals. ANSI escapes applied AFTER wrapping so escape sequences never break the wrap math. Fixes the prior glitches where help text showed `--doin <d>` (wrapped "domain") and `--author-nametext>` (wrapped "name <text>").
+- **New `cli/help.ts`** — content-as-data model (each command's help is structured data; the renderer walks it). Easier to maintain, easier to test.
+
+### Test coverage
+
+- 411 → 450 tests (+39): help rendering, width handling at 60 columns (regression for the wrap glitches), ANSI-absence in plain mode, version format, all routing paths (`--help`, `-h`, `help`, `help <cmd>`, `<cmd> --help`, `<cmd> -h`, `--version`, `-v`, bare).
+
 ## [0.4.1] — 2026-06-04
 
 ### Added
@@ -182,7 +202,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/shadowresearch/auto-geo/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/shadowresearch/auto-geo/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/shadowresearch/auto-geo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/shadowresearch/auto-geo/compare/v0.2.3...v0.3.0
