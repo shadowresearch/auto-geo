@@ -196,10 +196,21 @@ export function renderSitemapJson(report: SitemapReport): string {
  */
 export function renderCheckHuman(
   report: CheckReport,
-  opts: { colors: boolean; narrow?: boolean } = { colors: false }
+  opts: {
+    colors: boolean;
+    narrow?: boolean;
+    /**
+     * Show the engine's natural-language answer under each query.
+     * Default `"preview"` (~3 sentences, ~400 chars). `"full"` renders
+     * the entire response. `"none"` suppresses (matches v0.4.0
+     * behavior).
+     */
+    answer?: "none" | "preview" | "full";
+  } = { colors: false }
 ): string {
   const ui = makeUi(opts);
   const g = glyphs(ui.colors);
+  const answerMode = opts.answer ?? "preview";
   const lines: string[] = [];
 
   lines.push(
@@ -271,6 +282,12 @@ export function renderCheckHuman(
       lines.push(
         `${nested}${statusMark("fail", ui.colors)}  ${report.domain} NOT cited  ${dim(`(${detail})`, ui.colors)}`
       );
+    }
+    if (answerMode !== "none" && r.answer) {
+      lines.push("");
+      for (const ln of renderAnswerBlock(r.answer, answerMode, ui)) {
+        lines.push(ln);
+      }
     }
     lines.push("");
   });
@@ -507,6 +524,78 @@ function safeHostname(url: string): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * Render the LLM's natural-language answer as an indented blockquote.
+ * The answer is the most interesting signal alongside citations — it
+ * shows HOW the engine represents the domain, the framing it uses,
+ * and the context the citation appears in. Surfaced inline under
+ * each query so the human report stands alone (you don't have to
+ * crack open --json to read what the engine said).
+ *
+ * Modes:
+ *   - "full"    — render the entire response, word-wrapped.
+ *   - "preview" — trim to ~3 sentences + ~400 chars max, append `…`
+ *                 if truncated. Sufficient signal for scanning.
+ */
+function renderAnswerBlock(
+  answer: string,
+  mode: "preview" | "full",
+  ui: UiOptions
+): string[] {
+  const collapsed = answer.replace(/\s+/g, " ").trim();
+  if (!collapsed) return [];
+
+  let text = collapsed;
+  let truncated = false;
+  if (mode === "preview") {
+    // Split on sentence-ending punctuation followed by space-or-end;
+    // take first 3, cap at 400 chars total.
+    const sentences = collapsed.split(/(?<=[.!?])\s+/).slice(0, 3).join(" ");
+    if (sentences.length > 400) {
+      text = sentences.slice(0, 400).replace(/\s+\S*$/, "") + "…";
+      truncated = true;
+    } else if (sentences.length < collapsed.length) {
+      text = sentences + "…";
+      truncated = true;
+    } else {
+      text = sentences;
+    }
+  }
+
+  // Wrap text to terminal width minus indent + blockquote prefix.
+  const prefix = `${indent(ui)}  │ `;
+  const wrapWidth = Math.max(40, (ui.width ?? 80) - prefix.length);
+  const wrapped = wordWrap(text, wrapWidth);
+
+  const lines = wrapped.map((ln) => `${prefix}${dim(ln, ui.colors)}`);
+  if (mode === "preview" && truncated) {
+    lines.push(
+      `${indent(ui)}  ${dim("(preview — pass --answers full for the complete response)", ui.colors)}`
+    );
+  }
+  return lines;
+}
+
+function wordWrap(text: string, width: number): string[] {
+  const words = text.split(/\s+/);
+  const out: string[] = [];
+  let line = "";
+  for (const w of words) {
+    if (!line.length) {
+      line = w;
+      continue;
+    }
+    if (line.length + 1 + w.length <= width) {
+      line += " " + w;
+    } else {
+      out.push(line);
+      line = w;
+    }
+  }
+  if (line.length) out.push(line);
+  return out;
 }
 
 function scoreLabel(pct: number): string {
