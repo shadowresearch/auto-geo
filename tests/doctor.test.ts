@@ -918,11 +918,28 @@ describe("run()", () => {
     expect(out.join("\n")).toContain("auto-geo doctor");
   });
 
-  it("returns exit code 2 when no URL is supplied", async () => {
-    const { err } = captureConsole();
+  it("bare `auto-geo` (no args) renders global help with exit 0", async () => {
+    // Behavior change in v0.4.2: bare invocation no longer dispatches
+    // to `doctor` with a missing URL — it surfaces the global help and
+    // exits 0. The "missing URL" path moved to `auto-geo doctor` with
+    // no positional, which is covered by the next test.
+    const { out } = captureConsole();
     const code = await run([]);
+    expect(code).toBe(0);
+    const printed = out.join("\n");
+    expect(printed).toContain("auto-geo");
+    expect(printed).toContain("Usage:");
+    expect(printed).toContain("doctor");
+    expect(printed).toContain("check");
+  });
+
+  it("`auto-geo doctor` without a URL returns exit 2 and points at --help", async () => {
+    const { err } = captureConsole();
+    const code = await run(["doctor"]);
     expect(code).toBe(2);
-    expect(err.join("\n")).toContain("missing URL");
+    const printed = err.join("\n");
+    expect(printed).toContain("missing URL");
+    expect(printed).toContain("auto-geo doctor --help");
   });
 
   it("returns exit code 2 on a malformed flag", async () => {
