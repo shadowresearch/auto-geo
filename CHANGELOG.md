@@ -8,6 +8,25 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-04
+
+### Added — four new `auto-geo check` engines + `--engine all` rollup
+
+The citation-coverage CLI now spans every major AI search surface. Pick an engine by env var; one query against five engines for a complete picture of who's citing your domain across the AI landscape.
+
+- **OpenAI** — `--engine openai`. OpenAI Responses API with the `web_search_preview` tool. Default model `gpt-4o-mini`. Reads `OPENAI_API_KEY`.
+- **Anthropic** — `--engine anthropic`. Claude Messages API with the `web_search_20250305` tool (override via `--tool-type` for Opus 4.6+ dynamic filtering). Default model `claude-sonnet-4-5`. Reads `ANTHROPIC_API_KEY`.
+- **Gemini** — `--engine gemini`. Google Gemini API with the `google_search` grounding tool. Default model `gemini-2.5-flash`. Reads `GOOGLE_API_KEY` (fallback `GEMINI_API_KEY`). Wrapper redirect URIs from grounding metadata are retained as the canonical citation alongside a derived destination URL so `--domain` matching actually fires.
+- **xAI (Grok)** — `--engine xai` (alias `--engine grok`). xAI chat completions API with `search_parameters: { mode: "on", return_citations: true }`. Default model `grok-2-latest`. Reads `XAI_API_KEY`.
+- **`--engine all`** — fans out across every engine whose env var is set; skips others with a labelled reason. Two roll-up metrics: **union coverage** (fraction of queries cited by ≥1 engine) and **mean coverage** (average solo coverage). Per-query matrix in human output, full `MultiEngineCheckReport` in `--json`.
+- 345 → 389 tests (+44): 8 per new engine adapter + 12 for the multi-engine rollup, per-engine failure isolation, and dispatcher dispatch paths.
+
+### Notes
+
+- Zero new runtime dependencies — all engines are plain `fetch()`.
+- Per-engine cost tracking: token charges from each provider's `usage` field plus per-search flat fees (OpenAI $0.025, Anthropic $0.01, Gemini $0.035, xAI $0.025 — verify against each provider's current pricing).
+- One smoke test against `shadow.inc` for 5 queries across all 5 engines = ~$0.10–0.20 total.
+
 ## [0.3.0] — 2026-06-04
 
 ### Changed
@@ -142,7 +161,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/shadowresearch/auto-geo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/shadowresearch/auto-geo/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/shadowresearch/auto-geo/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/shadowresearch/auto-geo/compare/v0.2.1...v0.2.2
