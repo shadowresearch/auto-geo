@@ -543,10 +543,13 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   if (parsed.command === "help") {
+    // Respect NO_COLOR + non-TTY pipes for help output, same gate as
+    // every other human renderer in the CLI.
+    const colors = shouldUseColor(true, false);
     if (parsed.topic) {
-      console.log(renderCommandHelp(parsed.topic, { colors: true }));
+      console.log(renderCommandHelp(parsed.topic, { colors }));
     } else {
-      console.log(renderGlobalHelp({ colors: true }));
+      console.log(renderGlobalHelp({ colors }));
     }
     return 0;
   }
