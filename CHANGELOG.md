@@ -8,6 +8,29 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-05
+
+### Added
+
+- **`auto-geo check --format <auto-geo|geo-audit>`** — output-shape flag. Default `auto-geo` keeps the v0.4.x shape byte-stable. `geo-audit` maps each per-query result to the `LlmQueryResult` shape from Shadow's internal `geoAudit` agent tool (fields: `prompt`, `provider`, `model`, `responseText`, `citations`, `fanOutQueries`, `inputTokens`, `outputTokens`, `reasoningTokens`, `moneySpent`, `webSearchEnabled`, `datetime`, `error`). Provider name maps `openai → chatgpt` to match. Under `--json --format geo-audit` the output is an object `{ rows, summary }`; under `--ndjson --format geo-audit` each line is one `GeoAuditRow` and the final `_summary` line carries both summaries. Makes `auto-geo check` a drop-in for any downstream consumer expecting that shape.
+- **Fan-out query capture** — each per-query result now carries `fanOutQueries: string[]` — the search queries the LLM internally expanded the user prompt into. Captured from every engine that exposes them:
+  - Perplexity (`response.search_queries[]` on newer Sonar variants)
+  - OpenAI (`web_search_call.action.query` from Responses API output items)
+  - Anthropic (`server_tool_use.input.query` blocks named `web_search`)
+  - Gemini (`groundingMetadata.webSearchQueries[]`)
+  - xAI: not exposed by their public response shape; field is `[]` with an in-code comment.
+- 450 → 476 tests (+26).
+
+### Changed
+
+- **Default `--concurrency` bumped from 6 to 12** for `check`. Perplexity Sonar Pro accounts handle this comfortably; existing exponential-backoff retry on 429 catches anyone hitting per-account caps. Users on restrictive accounts can lower; users on high-tier accounts can raise.
+- **Per-engine concurrency pools under `--engine all`** — each engine now gets its own concurrency-N worker pool executing in parallel across engines (5 engines × 12 = up to 60 in-flight requests, each respecting its own engine's rate limit). A 50-query × 5-engine run drops from ~3.5 min (v0.4.2) to ~40s (v0.5.0) of API time.
+
+### Notes
+
+- Native APIs only — no DataForSEO. Each engine adapter speaks directly to its provider's HTTP API.
+- Default output shape (no `--format` flag) is byte-stable apart from the new `fanOutQueries: string[]` field on each result. Additive, doesn't break existing JSON consumers.
+
 ## [0.4.2] — 2026-06-05
 
 ### Added
@@ -202,7 +225,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/shadowresearch/auto-geo/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/shadowresearch/auto-geo/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/shadowresearch/auto-geo/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/shadowresearch/auto-geo/compare/v0.3.0...v0.4.0
