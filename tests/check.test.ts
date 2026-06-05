@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ALL_ENGINE_NAMES,
+  DEFAULT_CONCURRENCY,
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_TIMEOUT_PER_QUERY_SEC,
   createEngine,
   engineHasCredentials,
   hostnameMatchesDomain,
@@ -8,6 +11,7 @@ import {
   runCheck,
   runCheckMulti,
   type CheckReport,
+  type CheckQueryResult,
 } from "../cli/check";
 import { createPerplexityEngine } from "../cli/engines/perplexity";
 import type { CitedSource, Engine, EngineResponse } from "../cli/engines/types";
@@ -331,6 +335,92 @@ describe("renderCheckHuman", () => {
   });
 });
 
+describe("renderCheckHuman — --answers modes", () => {
+  function reportWithAnswer(answer: string): CheckReport {
+    return {
+      domain: "shadow.inc",
+      engine: "perplexity",
+      model: "sonar",
+      results: [
+        {
+          query: "what is GEO",
+          cited: true,
+          citations: [
+            {
+              url: "https://www.shadow.inc/resources/what-is-geo",
+              rank: 1,
+              totalCitationsForQuery: 3,
+            },
+          ],
+          rawSources: sources("https://www.shadow.inc/resources/what-is-geo"),
+          answer,
+        },
+      ],
+      summary: {
+        citedQueryCount: 1,
+        totalQueries: 1,
+        coveragePct: 100,
+        totalCitations: 1,
+        estimatedCostUsd: 0,
+        errors: [],
+      },
+      generatedBy: "auto-geo check",
+    };
+  }
+
+  const SHORT_ANSWER =
+    "GEO stands for Generative Engine Optimization. It's the practice of structuring content so AI search engines cite you.";
+
+  const LONG_ANSWER = Array.from(
+    { length: 12 },
+    (_, i) => `Sentence ${i + 1} explains something concrete about GEO.`
+  ).join(" ");
+
+  it("renders the answer as a dimmed blockquote by default (preview)", () => {
+    const out = renderCheckHuman(reportWithAnswer(SHORT_ANSWER));
+    expect(out).toContain("\u2502"); // │ blockquote prefix
+    expect(out).toContain("GEO stands for Generative Engine Optimization");
+  });
+
+  it("omits the answer block under --answers none", () => {
+    const out = renderCheckHuman(reportWithAnswer(SHORT_ANSWER), {
+      colors: false,
+      answer: "none",
+    });
+    expect(out).not.toContain("\u2502");
+    expect(out).not.toContain("GEO stands for Generative");
+  });
+
+  it("renders the full answer under --answers full", () => {
+    const out = renderCheckHuman(reportWithAnswer(LONG_ANSWER), {
+      colors: false,
+      answer: "full",
+    });
+    expect(out).toContain("Sentence 1");
+    expect(out).toContain("Sentence 12");
+  });
+
+  it("truncates with an ellipsis + footer note under preview when long", () => {
+    const out = renderCheckHuman(reportWithAnswer(LONG_ANSWER), {
+      colors: false,
+      answer: "preview",
+    });
+    expect(out).toContain("\u2026"); // ellipsis
+    expect(out).toContain("preview");
+    expect(out).toContain("--answers full");
+    // Must NOT include the late sentences.
+    expect(out).not.toContain("Sentence 12");
+  });
+
+  it("emits nothing when answer is empty even in preview mode", () => {
+    const out = renderCheckHuman(reportWithAnswer(""), {
+      colors: false,
+      answer: "preview",
+    });
+    expect(out).not.toContain("\u2502");
+  });
+});
+
 describe("renderCheckJson", () => {
   it("round-trips through JSON.parse to the original shape", () => {
     const r: CheckReport = {
@@ -598,6 +688,210 @@ describe("runCheckMulti", () => {
   });
 });
 
+// ── runCheck — perf knobs (v0.4.1) ─────────────────────────────────
+
+describe("runCheck — defaults", () => {
+  it("exposes a default concurrency of 6 (bumped from 2 in v0.4.1)", () => {
+    expect(DEFAULT_CONCURRENCY).toBe(6);
+  });
+
+  it("exposes a default per-query timeout of 60s", () => {
+    expect(DEFAULT_TIMEOUT_PER_QUERY_SEC).toBe(60);
+  });
+
+  it("exposes a default of 2 retries", () => {
+    expect(DEFAULT_MAX_RETRIES).toBe(2);
+  });
+});
+
+describe("runCheck — onResult callback", () => {
+  it("fires once per query in completion order with monotonic counts", async () => {
+    // Make `b` finish before `a` by stalling `a` longer.
+    const ordering: Array<{ q: string; completed: number; total: number }> = [];
+    const engine = {
+      name: "stagger",
+      model: "x",
+      async askWithCitations(q: string) {
+        const delay = q === "a" ? 30 : 1;
+        await new Promise((r) => setTimeout(r, delay));
+        return { answer: "", citations: [] };
+      },
+    };
+    await runCheck({
+      domain: "shadow.inc",
+      queries: ["a", "b"],
+      engine,
+      concurrency: 2,
+      onResult: (result, completed, total) =>
+        ordering.push({ q: result.query, completed, total }),
+    });
+    expect(ordering.map((o) => o.q)).toEqual(["b", "a"]);
+    expect(ordering.map((o) => o.completed)).toEqual([1, 2]);
+    expect(ordering.every((o) => o.total === 2)).toBe(true);
+  });
+
+  it("swallows callback errors so the run still completes", async () => {
+    const engine = makeEngine({
+      q: { answer: "", citations: sources("https://shadow.inc/p") },
+    });
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engine,
+      onResult: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(report.summary.coveragePct).toBe(100);
+  });
+});
+
+describe("runCheck — per-query timeout", () => {
+  it("marks a stuck query as 'timed out after Ns' and keeps the rest going", async () => {
+    const engine = {
+      name: "slow",
+      model: "x",
+      async askWithCitations(q: string) {
+        if (q === "stuck") {
+          // Never resolves within the test window.
+          await new Promise(() => {});
+          return { answer: "", citations: [] };
+        }
+        return { answer: "", citations: sources("https://shadow.inc/p") };
+      },
+    };
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["stuck", "ok"],
+      engine,
+      concurrency: 2,
+      timeoutPerQuerySec: 1, // 1s timeout
+      maxRetries: 0,
+    });
+    expect(report.results[0]!.error).toMatch(/timed out after 1s/);
+    expect(report.results[1]!.cited).toBe(true);
+  });
+});
+
+describe("runCheck — retry on transient failures", () => {
+  it("retries 429 responses and recovers on the next attempt", async () => {
+    let attempts = 0;
+    const engine = {
+      name: "flaky",
+      model: "x",
+      async askWithCitations() {
+        attempts += 1;
+        if (attempts === 1) throw new Error("Engine API 429 Too Many Requests");
+        return { answer: "", citations: sources("https://shadow.inc/p") };
+      },
+    };
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engine,
+      maxRetries: 2,
+    });
+    expect(attempts).toBe(2);
+    expect(report.results[0]!.cited).toBe(true);
+  });
+
+  it("retries 5xx responses", async () => {
+    let attempts = 0;
+    const engine = {
+      name: "flaky",
+      model: "x",
+      async askWithCitations() {
+        attempts += 1;
+        if (attempts < 2) throw new Error("Engine API 503 Service Unavailable");
+        return { answer: "", citations: [] };
+      },
+    };
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engine,
+      maxRetries: 2,
+    });
+    expect(attempts).toBe(2);
+    expect(report.results[0]!.error).toBeUndefined();
+  });
+
+  it("does NOT retry plain 4xx — those are configuration errors", async () => {
+    let attempts = 0;
+    const engine = {
+      name: "broken",
+      model: "x",
+      async askWithCitations() {
+        attempts += 1;
+        throw new Error("Engine API 401 Unauthorized");
+      },
+    };
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engine,
+      maxRetries: 3,
+    });
+    expect(attempts).toBe(1);
+    expect(report.results[0]!.error).toMatch(/401/);
+  });
+
+  it("gives up after maxRetries and records the last error", async () => {
+    let attempts = 0;
+    const engine = {
+      name: "always-flaky",
+      model: "x",
+      async askWithCitations() {
+        attempts += 1;
+        throw new Error("Engine API 502 Bad Gateway");
+      },
+    };
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["q"],
+      engine,
+      maxRetries: 1,
+    });
+    expect(attempts).toBe(2); // 1 try + 1 retry
+    expect(report.results[0]!.error).toMatch(/502/);
+  });
+});
+
+describe("runCheck — maxRuntimeSec", () => {
+  it("marks pending queries as skipped when the deadline trips", async () => {
+    // First query takes 50ms, second would take 200ms, deadline at 100ms.
+    let n = 0;
+    const engine = {
+      name: "slow",
+      model: "x",
+      async askWithCitations() {
+        n += 1;
+        const delay = n === 1 ? 30 : 500;
+        await new Promise((r) => setTimeout(r, delay));
+        return { answer: "", citations: sources("https://shadow.inc/p") };
+      },
+    };
+    const seen: CheckQueryResult[] = [];
+    const report = await runCheck({
+      domain: "shadow.inc",
+      queries: ["a", "b", "c"],
+      engine,
+      concurrency: 1, // serialize so we hit the deadline mid-run
+      timeoutPerQuerySec: 60,
+      maxRetries: 0,
+      maxRuntimeSec: 0.1, // 100ms
+      onResult: (r) => seen.push(r),
+    });
+    // a completes; b times out via the runtime-deadline cap on its
+    // per-attempt timeout; c is never started.
+    expect(report.results[0]!.cited).toBe(true);
+    expect(
+      report.results.some((r) => r.error === "skipped — max runtime exceeded")
+    ).toBe(true);
+    expect(seen).toHaveLength(3);
+  });
+});
+
 // ── CLI parser ────────────────────────────────────────────────────
 
 describe("parseArgs — check subcommand", () => {
@@ -651,6 +945,83 @@ describe("parseArgs — check subcommand", () => {
     const a = parseArgs(["doctor", "https://example.com/p"]);
     expect(a.command).toBe("doctor");
     expect(a.url).toBe("https://example.com/p");
+  });
+
+  it("defaults --answers to 'preview' and parses 'none'/'full'", () => {
+    const def = parseArgs(["check", "--domain", "shadow.inc", "--query", "q"]);
+    if (def.command !== "check") throw new Error("expected check");
+    expect(def.answers).toBe("preview");
+
+    const none = parseArgs([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "q",
+      "--answers",
+      "none",
+    ]);
+    if (none.command !== "check") throw new Error("expected check");
+    expect(none.answers).toBe("none");
+
+    const full = parseArgs([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "q",
+      "--answers",
+      "full",
+    ]);
+    if (full.command !== "check") throw new Error("expected check");
+    expect(full.answers).toBe("full");
+  });
+
+  it("rejects an unknown --answers value", () => {
+    expect(() =>
+      parseArgs([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q",
+        "--answers",
+        "verbose",
+      ])
+    ).toThrow(/--answers must be/);
+  });
+
+  it("parses --ndjson, --timeout-per-query, --max-runtime", () => {
+    const a = parseArgs([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "q",
+      "--ndjson",
+      "--timeout-per-query",
+      "30",
+      "--max-runtime",
+      "120",
+    ]);
+    if (a.command !== "check") throw new Error("expected check");
+    expect(a.ndjson).toBe(true);
+    expect(a.timeoutPerQuerySec).toBe(30);
+    expect(a.maxRuntimeSec).toBe(120);
+  });
+
+  it("errors when --json and --ndjson are both passed", () => {
+    expect(() =>
+      parseArgs([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q",
+        "--json",
+        "--ndjson",
+      ])
+    ).toThrow(/mutually exclusive/);
   });
 });
 
@@ -1005,5 +1376,75 @@ describe("run() — check subcommand", () => {
     const parsed = JSON.parse(out.join("\n"));
     expect(parsed.domain).toBe("shadow.inc");
     expect(parsed.summary.coveragePct).toBe(100);
+  });
+
+  it("--ndjson streams one JSON object per line + a _summary line", async () => {
+    process.env.PERPLEXITY_API_KEY = "test";
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "answer text" } }],
+          citations: ["https://www.shadow.inc/p"],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+        { status: 200 }
+      )) as typeof globalThis.fetch;
+
+    // Capture process.stdout.write — that's what --ndjson uses.
+    const chunks: string[] = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((c: unknown) => {
+      chunks.push(typeof c === "string" ? c : String(c));
+      return true;
+    }) as typeof process.stdout.write;
+    captureConsole();
+
+    try {
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q1",
+        "--query",
+        "q2",
+        "--ndjson",
+      ]);
+      expect(code).toBe(0);
+    } finally {
+      process.stdout.write = origWrite;
+    }
+
+    const lines = chunks
+      .join("")
+      .split("\n")
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(3); // 2 results + 1 summary
+    const r1 = JSON.parse(lines[0]!);
+    expect(r1.query).toMatch(/^q[12]$/);
+    expect(r1.cited).toBe(true);
+    expect(typeof r1.timestamp).toBe("string");
+    expect(Array.isArray(r1.citations)).toBe(true);
+    const summary = JSON.parse(lines[2]!);
+    expect(summary._summary).toBe(true);
+    expect(summary.totalQueries).toBe(2);
+    expect(summary.coveragePct).toBe(100);
+    expect(summary.domain).toBe("shadow.inc");
+    expect(summary.engine).toBe("perplexity");
+  });
+
+  it("--ndjson + --json errors before any run starts", async () => {
+    const { err } = captureConsole();
+    const code = await run([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "q",
+      "--ndjson",
+      "--json",
+    ]);
+    expect(code).toBe(2);
+    expect(err.join("\n")).toContain("mutually exclusive");
   });
 });

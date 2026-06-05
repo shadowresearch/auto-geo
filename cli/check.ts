@@ -83,12 +83,62 @@ export type RunCheckOptions = {
   queries: string[];
   engine: Engine;
   /**
-   * Per-query parallelism. Defaults to 2 — low enough to be polite to
-   * the engine API and to dodge most rate-limit ceilings. Set higher
-   * with caution; sonar-pro will 429 you fast.
+   * Per-query parallelism. Defaults to {@link DEFAULT_CONCURRENCY} — a
+   * throughput-vs-rate-limit balance that's safe at every engine's
+   * documented default-tier ceilings. Set lower for restrictive
+   * accounts, higher for high-tier API plans.
    */
   concurrency?: number;
+  /**
+   * Per-query outer timeout in seconds. If a single query exceeds it,
+   * that query is aborted and recorded as `error: "timed out after Ns"`
+   * — the rest of the run continues. This sits *above* any HTTP-level
+   * timeout in the adapter so slow LLM grounding doesn't lock the run.
+   * Defaults to {@link DEFAULT_TIMEOUT_PER_QUERY_SEC}.
+   */
+  timeoutPerQuerySec?: number;
+  /**
+   * Number of automatic retries on transient failures (429 / 5xx /
+   * network). Defaults to {@link DEFAULT_MAX_RETRIES}. Backoff is
+   * exponential — 1s then 4s. 4xx responses are NEVER retried (they're
+   * configuration errors that won't fix themselves).
+   */
+  maxRetries?: number;
+  /**
+   * Whole-run timeout in seconds. When exceeded, the orchestrator
+   * stops scheduling new queries, marks any still-pending queries as
+   * `error: "skipped — max runtime exceeded"`, and returns the
+   * partial report. Default `undefined` (no cap).
+   */
+  maxRuntimeSec?: number;
+  /**
+   * Callback fired exactly once per query as it resolves (in
+   * completion order, not request order). Used by the CLI to stream
+   * NDJSON output and print live progress to stderr. The orchestrator
+   * never throws from here — a thrown callback is swallowed so a
+   * presentation-layer bug can't poison the run.
+   */
+  onResult?: (
+    result: CheckQueryResult,
+    completed: number,
+    total: number
+  ) => void;
 };
+
+/**
+ * Default per-query parallelism for `runCheck`. Bumped from 2 → 6 in
+ * v0.4.1 after real-world agent runs were leaving throughput on the
+ * floor; 6 is safe under every supported engine's default-tier rate
+ * limit (Perplexity Sonar tolerates ~50 RPM, OpenAI Responses
+ * comfortably handles 6+ concurrent, etc.).
+ */
+export const DEFAULT_CONCURRENCY = 6;
+
+/** Default per-query outer timeout. See {@link RunCheckOptions.timeoutPerQuerySec}. */
+export const DEFAULT_TIMEOUT_PER_QUERY_SEC = 60;
+
+/** Default transient-failure retry budget. See {@link RunCheckOptions.maxRetries}. */
+export const DEFAULT_MAX_RETRIES = 2;
 
 // ── Engine selection ──────────────────────────────────────────────
 
@@ -172,10 +222,46 @@ export function createEngine(
 const GENERATED_BY = "auto-geo check";
 
 export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
-  const concurrency = Math.max(1, opts.concurrency ?? 2);
+  const concurrency = Math.max(1, opts.concurrency ?? DEFAULT_CONCURRENCY);
+  const timeoutMs =
+    Math.max(1, opts.timeoutPerQuerySec ?? DEFAULT_TIMEOUT_PER_QUERY_SEC) *
+    1000;
+  const maxRetries = Math.max(0, opts.maxRetries ?? DEFAULT_MAX_RETRIES);
+  const maxRuntimeMs =
+    opts.maxRuntimeSec && opts.maxRuntimeSec > 0
+      ? opts.maxRuntimeSec * 1000
+      : undefined;
   const normalizedDomain = normalizeDomain(opts.domain);
 
-  const results: CheckQueryResult[] = new Array(opts.queries.length);
+  const total = opts.queries.length;
+  const results: CheckQueryResult[] = new Array(total);
+  let completed = 0;
+
+  const emit = (result: CheckQueryResult, i: number): void => {
+    results[i] = result;
+    completed += 1;
+    if (opts.onResult) {
+      try {
+        opts.onResult(result, completed, total);
+      } catch {
+        // Swallow — a presentation-layer error must never poison the run.
+      }
+    }
+  };
+
+  // Whole-run deadline (optional). When the deadline trips, workers
+  // observe `runtimeExceeded` and exit; the main pass below marks any
+  // still-missing slots as `skipped — max runtime exceeded`.
+  const startedAt = Date.now();
+  let runtimeExceeded = false;
+  let runtimeTimer: ReturnType<typeof setTimeout> | undefined;
+  if (maxRuntimeMs !== undefined) {
+    runtimeTimer = setTimeout(() => {
+      runtimeExceeded = true;
+    }, maxRuntimeMs);
+    // Don't keep the event loop alive purely for this timer.
+    if (typeof runtimeTimer.unref === "function") runtimeTimer.unref();
+  }
 
   // Bounded promise-pool — same shape as the sitemap doctor's worker
   // loop. Each worker pulls the next index and writes its result into
@@ -183,56 +269,187 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
   let cursor = 0;
   async function worker(): Promise<void> {
     while (true) {
+      if (runtimeExceeded) return;
       const i = cursor++;
-      if (i >= opts.queries.length) return;
+      if (i >= total) return;
       const query = opts.queries[i]!;
-      results[i] = await runOneQuery(opts.engine, query, normalizedDomain);
+      const result = await runOneQuery(opts.engine, query, normalizedDomain, {
+        timeoutMs,
+        maxRetries,
+        isRuntimeExceeded: () => runtimeExceeded,
+        runtimeDeadlineMs:
+          maxRuntimeMs === undefined ? undefined : startedAt + maxRuntimeMs,
+      });
+      emit(result, i);
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, opts.queries.length) }, worker)
-  );
+
+  try {
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, total) }, worker)
+    );
+  } finally {
+    if (runtimeTimer) clearTimeout(runtimeTimer);
+  }
+
+  // Fill any holes — queries that were never started because the
+  // runtime deadline tripped first.
+  for (let i = 0; i < total; i++) {
+    if (!results[i]) {
+      const skipped: CheckQueryResult = {
+        query: opts.queries[i]!,
+        cited: false,
+        citations: [],
+        rawSources: [],
+        answer: "",
+        error: "skipped — max runtime exceeded",
+      };
+      emit(skipped, i);
+    }
+  }
 
   return summarize(opts.domain, opts.engine, results);
 }
 
+/**
+ * Per-attempt wrapper around `engine.askWithCitations`. Handles:
+ *   - outer timeout via `AbortController` + `setTimeout`,
+ *   - exponential-backoff retry on transient failures (429 / 5xx /
+ *     network), bounded by `maxRetries`,
+ *   - normalization of any unrecoverable error into a `CheckQueryResult`
+ *     with an `error` string (so the caller's result-array stays
+ *     well-formed).
+ *
+ * 4xx responses (other than 429) are NEVER retried — those are
+ * configuration errors (bad key, bad model) and retrying just burns
+ * time and quota.
+ */
 async function runOneQuery(
   engine: Engine,
   query: string,
-  normalizedDomain: string
-): Promise<CheckQueryResult> {
-  try {
-    const response = await engine.askWithCitations(query);
-    const sources = response.citations;
-    const citations: DomainCitation[] = [];
-    sources.forEach((source, idx) => {
-      if (hostnameMatchesDomain(source.url, normalizedDomain)) {
-        citations.push({
-          url: source.url,
-          title: source.title,
-          rank: idx + 1,
-          totalCitationsForQuery: sources.length,
-        });
-      }
-    });
-    return {
-      query,
-      cited: citations.length > 0,
-      citations,
-      rawSources: sources,
-      answer: response.answer,
-      usage: response.usage,
-    };
-  } catch (err) {
-    return {
-      query,
-      cited: false,
-      citations: [],
-      rawSources: [],
-      answer: "",
-      error: err instanceof Error ? err.message : String(err),
-    };
+  normalizedDomain: string,
+  opts: {
+    timeoutMs: number;
+    maxRetries: number;
+    isRuntimeExceeded?: () => boolean;
+    runtimeDeadlineMs?: number;
   }
+): Promise<CheckQueryResult> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+    // If the whole run is past its deadline, stop retrying.
+    if (opts.isRuntimeExceeded?.()) break;
+    // Effective per-attempt timeout: the smaller of the per-query
+    // budget and the time remaining until the whole-run deadline.
+    let effectiveTimeout = opts.timeoutMs;
+    if (opts.runtimeDeadlineMs !== undefined) {
+      const remaining = opts.runtimeDeadlineMs - Date.now();
+      if (remaining <= 0) break;
+      effectiveTimeout = Math.min(effectiveTimeout, remaining);
+    }
+
+    try {
+      const response = await withTimeout(
+        engine.askWithCitations(query),
+        effectiveTimeout
+      );
+      const sources = response.citations;
+      const citations: DomainCitation[] = [];
+      sources.forEach((source, idx) => {
+        if (hostnameMatchesDomain(source.url, normalizedDomain)) {
+          citations.push({
+            url: source.url,
+            title: source.title,
+            rank: idx + 1,
+            totalCitationsForQuery: sources.length,
+          });
+        }
+      });
+      return {
+        query,
+        cited: citations.length > 0,
+        citations,
+        rawSources: sources,
+        answer: response.answer,
+        usage: response.usage,
+      };
+    } catch (err) {
+      lastError = err;
+      // Decide retryability.
+      if (attempt >= opts.maxRetries) break;
+      if (!isRetryable(err)) break;
+      // Exponential backoff: 1s, 4s. Bounded by remaining runtime.
+      const waitMs = attempt === 0 ? 1000 : 4000;
+      const cappedWait =
+        opts.runtimeDeadlineMs === undefined
+          ? waitMs
+          : Math.min(waitMs, Math.max(0, opts.runtimeDeadlineMs - Date.now()));
+      if (cappedWait <= 0) break;
+      await sleep(cappedWait);
+    }
+  }
+  return {
+    query,
+    cited: false,
+    citations: [],
+    rawSources: [],
+    answer: "",
+    error: lastError instanceof Error ? lastError.message : String(lastError),
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    if (typeof t.unref === "function") t.unref();
+  });
+}
+
+/**
+ * Wrap a promise with an outer timeout. If the timeout fires first,
+ * rejects with `Error("timed out after Ns")`. The wrapped promise
+ * keeps running (we can't cancel an opaque adapter call), but its
+ * eventual result is discarded — keeps the worker pool from getting
+ * stuck on a slow query.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => {
+      reject(new Error(`timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+    if (typeof t.unref === "function") t.unref();
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(t);
+        reject(err);
+      }
+    );
+  });
+}
+
+/**
+ * Classify an error from `engine.askWithCitations` as transient
+ * (retryable) or terminal. Engine adapters throw `Error` with the
+ * HTTP status embedded in the message; we sniff for 429 and 5xx.
+ * Network-shaped errors (TypeError thrown by undici on connection
+ * failure, AbortError, our own timeout) are also retryable.
+ */
+function isRetryable(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message;
+    if (/\b429\b/.test(msg)) return true;
+    if (/\b5\d{2}\b/.test(msg)) return true;
+    if (/timed out after/i.test(msg)) return true;
+    if (/network|ECONN|ETIMEDOUT|EAI_AGAIN|fetch failed/i.test(msg))
+      return true;
+  }
+  // Undici tends to throw plain TypeError on connection failure.
+  if (err instanceof TypeError) return true;
+  return false;
 }
 
 function summarize(
@@ -281,6 +498,9 @@ export type RunCheckMultiOptions = {
   queries: string[];
   engines: Engine[];
   concurrency?: number;
+  timeoutPerQuerySec?: number;
+  maxRetries?: number;
+  maxRuntimeSec?: number;
 };
 
 /**
@@ -351,6 +571,9 @@ export async function runCheckMulti(
         queries: opts.queries,
         engine,
         concurrency: opts.concurrency,
+        timeoutPerQuerySec: opts.timeoutPerQuerySec,
+        maxRetries: opts.maxRetries,
+        maxRuntimeSec: opts.maxRuntimeSec,
       })
     )
   );

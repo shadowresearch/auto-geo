@@ -72,19 +72,23 @@ auto-geo check --domain <d> --query <q> --json
 
 Flags:
 
-| Flag                    | What it does                                                                                                                                        |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--domain <d>`          | Bare domain (`shadow.inc`) or full origin (`https://shadow.inc`). **Required.**                                                                     |
-| `--query <text>`        | A single query. Repeatable — at least one `--query` or `--queries-file` is required.                                                                |
-| `--queries-file <path>` | Newline-separated queries. `#` lines are treated as comments and skipped.                                                                           |
-| `--engine <name>`       | One of `perplexity` (default), `openai`, `anthropic`, `gemini`, `xai` (alias: `grok`), or `all` (run every engine whose API key is present in env). |
-| `--model <name>`        | Engine-specific model. Default `sonar` for Perplexity.                                                                                              |
-| `--concurrency N`       | Parallel queries. Default 2. Higher → faster but more likely to hit engine rate limits.                                                             |
-| `--json`                | Machine-readable JSON conforming to the `CheckReport` shape in `cli/check.ts`.                                                                      |
-| `--out <path>`          | Also write the full JSON report to `<path>` (alongside whatever else gets printed).                                                                 |
-| `--no-color`            | Disable ANSI colors even on a TTY.                                                                                                                  |
+| Flag                    | What it does                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--domain <d>`          | Bare domain (`shadow.inc`) or full origin (`https://shadow.inc`). **Required.**                                                                                                      |
+| `--query <text>`        | A single query. Repeatable — at least one `--query` or `--queries-file` is required.                                                                                                 |
+| `--queries-file <path>` | Newline-separated queries. `#` lines are treated as comments and skipped.                                                                                                            |
+| `--engine <name>`       | One of `perplexity` (default), `openai`, `anthropic`, `gemini`, `xai` (alias: `grok`), or `all` (run every engine whose API key is present in env).                                  |
+| `--model <name>`        | Engine-specific model. Default `sonar` for Perplexity.                                                                                                                               |
+| `--concurrency N`       | Parallel queries. Default `6` (bumped from `2` in v0.4.1). Higher → faster, more likely to hit per-account rate limits. Lower for restrictive accounts.                              |
+| `--answers <mode>`      | Render the engine's natural-language answer under each query in human output. `preview` (default, ~3 sentences, ~400 chars), `full`, or `none`. Ignored under `--json` / `--ndjson`. |
+| `--json`                | One single JSON object on stdout when the run completes. Conforms to `CheckReport` in `cli/check.ts`.                                                                                |
+| `--ndjson`              | Stream one JSON object per line to stdout AS each query resolves; final line is the summary tagged `{"_summary":true,…}`. Mutually exclusive with `--json`.                          |
+| `--timeout-per-query N` | Per-query outer timeout in seconds (default `60`). A query that exceeds it is marked `error: "timed out after Ns"`; the rest of the run continues.                                   |
+| `--max-runtime N`       | Whole-run timeout in seconds (default: no cap). When exceeded, pending queries are marked `error: "skipped — max runtime exceeded"`, partial results are emitted, exit 2.            |
+| `--out <path>`          | Also write the full JSON report to `<path>` (alongside whatever else gets printed).                                                                                                  |
+| `--no-color`            | Disable ANSI colors even on a TTY.                                                                                                                                                   |
 
-Exit code: `0` if coverage > 0% (any query cited your domain), `1` if coverage is 0%. CI-friendly:
+Exit code: `0` if coverage > 0% (any query cited your domain), `1` if coverage is 0%, `2` if `--max-runtime` tripped. CI-friendly:
 
 ```bash
 npx auto-geo check --domain shadow.inc --queries-file critical-queries.txt && deploy
@@ -118,6 +122,116 @@ Next steps:
   - Audit the un-cited queries' targeted pages with `npx auto-geo doctor <url>`
   - Re-run `auto-geo check` after publishing new pages targeting uncited queries
 ```
+
+## Performance
+
+`check` is built around a bounded promise-pool — each engine adapter is a thin `fetch` wrapper, and Node's global `fetch` (undici-backed) reuses HTTP connections per origin automatically. The bottleneck is the engine API's per-request latency, not local overhead.
+
+### Defaults that matter
+
+| Setting               | Default | Why                                                                                                                                             |
+| --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--concurrency`       | `6`     | Safe under every supported engine's documented default-tier rate limit. Bumped from `2` in v0.4.1 after real-world runs left throughput unused. |
+| `--timeout-per-query` | `60s`   | Outer timeout — sits above any HTTP-level timeout in the adapter. A stuck request is aborted and recorded as an error; the rest continues.      |
+| `--max-runtime`       | _none_  | Whole-run cap. Useful in CI to prevent a hung run from holding the worker. Exit `2` when tripped.                                               |
+
+Built-in retry: on transient failures (`429`, `5xx`, network timeouts), each query is retried up to **2 times** with exponential backoff (1s, then 4s). `4xx` errors (other than `429`) are never retried — those are configuration mistakes that retrying won't fix.
+
+### Per-engine latency rule of thumb
+
+These are typical default-model round-trips against a warm connection. Your real numbers depend on prompt length, grounding depth, and account tier — instrument the per-query `usage.estimatedCostUsd` field for cost, the `--ndjson` `timestamp` field for latency.
+
+| Engine     | Default model       | Typical per-query latency |
+| ---------- | ------------------- | ------------------------- |
+| gemini     | `gemini-2.5-flash`  | ~3s                       |
+| perplexity | `sonar`             | ~5s                       |
+| xai        | `grok-2-latest`     | ~5s                       |
+| openai     | `gpt-4o-mini`       | ~6s                       |
+| anthropic  | `claude-sonnet-4-5` | ~8s                       |
+
+At the default `--concurrency 6`, a 50-query Perplexity run lands around **~67s** of API time (50 × ~8s ÷ 6 concurrent) plus a one-time `npx` cold-start (~3s). Bigger query sets scale linearly.
+
+### Recommended patterns
+
+**One CLI call, many `--query` flags.** Each `npx auto-geo check` invocation pays a one-time `npx` cold-start (~3s) before any work begins. For a 50-query audit, run ONE process with 50 `--query` flags rather than 50 separate processes — you save ~150s of cold-start alone.
+
+```bash
+# Good — one process, one cold-start.
+npx auto-geo check --domain shadow.inc \
+  --query "what is GEO" \
+  --query "open source GEO tools" \
+  --query "how do I get cited by ChatGPT" \
+  # … 47 more
+```
+
+A newline-separated file is even cleaner:
+
+```bash
+npx auto-geo check --domain shadow.inc --queries-file critical-queries.txt
+```
+
+**Stream output with `--ndjson` for agent integration.** Default human and `--json` modes wait until the whole run finishes before emitting output, which is fine for short runs but invisible-feeling for big ones. `--ndjson` emits one JSON object per line to stdout AS each query completes — partial results are available to a downstream consumer in real time, and the final line carries the rolled-up summary:
+
+```bash
+npx auto-geo check --domain shadow.inc --queries-file q.txt --ndjson \
+  | tee run.ndjson \
+  | jq -r 'select(.cited == true) | .query'
+
+# Roll up the summary at the end:
+tail -n 1 run.ndjson | jq '{coverage: .coveragePct, cost: .estimatedCostUsd}'
+```
+
+Per-query line shape (additive; consumers should ignore unknown fields):
+
+```json
+{
+  "query": "what is GEO",
+  "cited": true,
+  "citations": [
+    {
+      "url": "https://www.shadow.inc/resources/what-is-geo",
+      "rank": 1,
+      "totalCitationsForQuery": 5
+    }
+  ],
+  "rawSources": [{ "url": "…" }, { "url": "…" }],
+  "answer": "GEO stands for…",
+  "usage": { "totalTokens": 486, "estimatedCostUsd": 0.000486 },
+  "timestamp": "2026-06-04T18:01:23.000Z"
+}
+```
+
+Summary (always the last line, marked with `_summary: true`):
+
+```json
+{
+  "_summary": true,
+  "domain": "shadow.inc",
+  "engine": "perplexity",
+  "model": "sonar",
+  "citedQueryCount": 34,
+  "totalQueries": 50,
+  "coveragePct": 68,
+  "totalCitations": 41,
+  "estimatedCostUsd": 0.27,
+  "errors": []
+}
+```
+
+Under `--engine all`, the per-line shape additionally includes an `engine` field, and the `_summary` line carries the multi-engine `engines`, `skippedEngines`, and `acrossEngines` roll-ups in addition to the union/mean coverage numbers.
+
+**Live progress is on stderr.** In human mode, `check` prints a one-line `[i/N] ✓/✗ "query" — cited (n sources)` to stderr as each query resolves (in completion order, not request order). This way piping stdout to a file still gets you only the final report, while the terminal shows live progress.
+
+**Cap CI runs with `--max-runtime`.** For CI integration, set a hard ceiling so a hung engine doesn't hold the runner:
+
+```bash
+npx auto-geo check --domain shadow.inc \
+  --queries-file critical-queries.txt \
+  --max-runtime 180 \
+  --ndjson --out report.json
+```
+
+Exit `2` means the deadline tripped — even if some queries cited the domain, the run was truncated and should be re-attempted.
 
 ## How it works per-engine
 

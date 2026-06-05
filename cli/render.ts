@@ -552,7 +552,10 @@ function renderAnswerBlock(
   if (mode === "preview") {
     // Split on sentence-ending punctuation followed by space-or-end;
     // take first 3, cap at 400 chars total.
-    const sentences = collapsed.split(/(?<=[.!?])\s+/).slice(0, 3).join(" ");
+    const sentences = collapsed
+      .split(/(?<=[.!?])\s+/)
+      .slice(0, 3)
+      .join(" ");
     if (sentences.length > 400) {
       text = sentences.slice(0, 400).replace(/\s+\S*$/, "") + "…";
       truncated = true;
