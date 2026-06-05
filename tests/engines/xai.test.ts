@@ -74,6 +74,16 @@ describe("createXAIEngine", () => {
     ).toBe(true);
   });
 
+  it("returns an empty fanOutQueries array (xAI does not expose them)", async () => {
+    const engine = createXAIEngine({
+      apiKey: "xai-test",
+      fetch: (async () =>
+        jsonResponse(xaiSampleResponse)) as typeof globalThis.fetch,
+    });
+    const res = await engine.askWithCitations("q");
+    expect(res.fanOutQueries).toEqual([]);
+  });
+
   it("computes cost from token usage + num_sources_used", async () => {
     const engine = createXAIEngine({
       apiKey: "xai-test",

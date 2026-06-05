@@ -72,21 +72,22 @@ auto-geo check --domain <d> --query <q> --json
 
 Flags:
 
-| Flag                    | What it does                                                                                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--domain <d>`          | Bare domain (`shadow.inc`) or full origin (`https://shadow.inc`). **Required.**                                                                                                      |
-| `--query <text>`        | A single query. Repeatable — at least one `--query` or `--queries-file` is required.                                                                                                 |
-| `--queries-file <path>` | Newline-separated queries. `#` lines are treated as comments and skipped.                                                                                                            |
-| `--engine <name>`       | One of `perplexity` (default), `openai`, `anthropic`, `gemini`, `xai` (alias: `grok`), or `all` (run every engine whose API key is present in env).                                  |
-| `--model <name>`        | Engine-specific model. Default `sonar` for Perplexity.                                                                                                                               |
-| `--concurrency N`       | Parallel queries. Default `6` (bumped from `2` in v0.4.1). Higher → faster, more likely to hit per-account rate limits. Lower for restrictive accounts.                              |
-| `--answers <mode>`      | Render the engine's natural-language answer under each query in human output. `preview` (default, ~3 sentences, ~400 chars), `full`, or `none`. Ignored under `--json` / `--ndjson`. |
-| `--json`                | One single JSON object on stdout when the run completes. Conforms to `CheckReport` in `cli/check.ts`.                                                                                |
-| `--ndjson`              | Stream one JSON object per line to stdout AS each query resolves; final line is the summary tagged `{"_summary":true,…}`. Mutually exclusive with `--json`.                          |
-| `--timeout-per-query N` | Per-query outer timeout in seconds (default `60`). A query that exceeds it is marked `error: "timed out after Ns"`; the rest of the run continues.                                   |
-| `--max-runtime N`       | Whole-run timeout in seconds (default: no cap). When exceeded, pending queries are marked `error: "skipped — max runtime exceeded"`, partial results are emitted, exit 2.            |
-| `--out <path>`          | Also write the full JSON report to `<path>` (alongside whatever else gets printed).                                                                                                  |
-| `--no-color`            | Disable ANSI colors even on a TTY.                                                                                                                                                   |
+| Flag                    | What it does                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--domain <d>`          | Bare domain (`shadow.inc`) or full origin (`https://shadow.inc`). **Required.**                                                                                                                                                                                                                                                                                                |
+| `--query <text>`        | A single query. Repeatable — at least one `--query` or `--queries-file` is required.                                                                                                                                                                                                                                                                                           |
+| `--queries-file <path>` | Newline-separated queries. `#` lines are treated as comments and skipped.                                                                                                                                                                                                                                                                                                      |
+| `--engine <name>`       | One of `perplexity` (default), `openai`, `anthropic`, `gemini`, `xai` (alias: `grok`), or `all` (run every engine whose API key is present in env).                                                                                                                                                                                                                            |
+| `--model <name>`        | Engine-specific model. Default `sonar` for Perplexity.                                                                                                                                                                                                                                                                                                                         |
+| `--concurrency N`       | Parallel queries **per engine**. Default `12` (bumped from `6` in v0.5.0). Recommended cap ~20 per engine; `--concurrency 50` is safe for batch jobs against a single fast engine. Lower for restrictive accounts. Under `--engine all` each engine gets its own pool of this size — `5 engines × 12 = up to 60` in-flight requests, each respecting that engine's rate limit. |
+| `--answers <mode>`      | Render the engine's natural-language answer under each query in human output. `preview` (default, ~3 sentences, ~400 chars), `full`, or `none`. Ignored under `--json` / `--ndjson`.                                                                                                                                                                                           |
+| `--json`                | One single JSON object on stdout when the run completes. Conforms to `CheckReport` in `cli/check.ts` (default `--format`).                                                                                                                                                                                                                                                     |
+| `--ndjson`              | Stream one JSON object per line to stdout AS each query resolves; final line is the summary tagged `{"_summary":true,…}`. Mutually exclusive with `--json`.                                                                                                                                                                                                                    |
+| `--format <id>`         | `auto-geo` (default) — the stable `CheckReport` / `MultiEngineCheckReport` shape. `geo-audit` — per-row `LlmQueryResult` shape for parity with Shadow's in-product `geoAudit` tool (`packages/core/src/lib/tools/geoAudit.tool.ts`). See [Output shapes](#output-shapes) below. Affects `--json` / `--ndjson` only; human output is unchanged.                                 |
+| `--timeout-per-query N` | Per-query outer timeout in seconds (default `60`). A query that exceeds it is marked `error: "timed out after Ns"`; the rest of the run continues.                                                                                                                                                                                                                             |
+| `--max-runtime N`       | Whole-run timeout in seconds (default: no cap). When exceeded, pending queries are marked `error: "skipped — max runtime exceeded"`, partial results are emitted, exit 2.                                                                                                                                                                                                      |
+| `--out <path>`          | Also write the full JSON report to `<path>` (alongside whatever else gets printed).                                                                                                                                                                                                                                                                                            |
+| `--no-color`            | Disable ANSI colors even on a TTY.                                                                                                                                                                                                                                                                                                                                             |
 
 Exit code: `0` if coverage > 0% (any query cited your domain), `1` if coverage is 0%, `2` if `--max-runtime` tripped. CI-friendly:
 
@@ -129,11 +130,13 @@ Next steps:
 
 ### Defaults that matter
 
-| Setting               | Default | Why                                                                                                                                             |
-| --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--concurrency`       | `6`     | Safe under every supported engine's documented default-tier rate limit. Bumped from `2` in v0.4.1 after real-world runs left throughput unused. |
-| `--timeout-per-query` | `60s`   | Outer timeout — sits above any HTTP-level timeout in the adapter. A stuck request is aborted and recorded as an error; the rest continues.      |
-| `--max-runtime`       | _none_  | Whole-run cap. Useful in CI to prevent a hung run from holding the worker. Exit `2` when tripped.                                               |
+| Setting               | Default | Why                                                                                                                                                                                                                                                                                                                                             |
+| --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--concurrency`       | `12`    | **Per engine.** Bumped from `6` → `12` in v0.5.0 — Perplexity Sonar Pro accounts comfortably sustain 12-wide parallelism, and the built-in exponential-backoff retry on `429` catches anyone hitting a per-account cap. Recommended cap ~20 per engine; `--concurrency 50` is safe for batch jobs against a single fast engine (Sonar, Gemini). |
+| `--timeout-per-query` | `60s`   | Outer timeout — sits above any HTTP-level timeout in the adapter. A stuck request is aborted and recorded as an error; the rest continues.                                                                                                                                                                                                      |
+| `--max-runtime`       | _none_  | Whole-run cap. Useful in CI to prevent a hung run from holding the worker. Exit `2` when tripped.                                                                                                                                                                                                                                               |
+
+**Per-engine pools under `--engine all`.** Each engine gets its OWN worker pool of size `--concurrency`. Pools execute fully in parallel via `Promise.all`, so a slow engine never blocks a fast one and a single engine's 429-retry never delays the others. At default `--concurrency 12` with all five engines credentialed that's up to **60 concurrent requests** in flight — each respecting its OWN per-account rate limit. This is the big v0.5.0 throughput win: a 50-query × 5-engine run that took ~3.5min at v0.4.2's `--concurrency 6` × serial-ish multi-engine completes in ~40s with the v0.5.0 default.
 
 Built-in retry: on transient failures (`429`, `5xx`, network timeouts), each query is retried up to **2 times** with exponential backoff (1s, then 4s). `4xx` errors (other than `429`) are never retried — those are configuration mistakes that retrying won't fix.
 
@@ -200,6 +203,8 @@ Per-query line shape (additive; consumers should ignore unknown fields):
   "timestamp": "2026-06-04T18:01:23.000Z"
 }
 ```
+
+> **Fan-out queries** are captured per-result on the `CheckQueryResult` carried under the default format too — they're exposed prominently in `--format geo-audit` rows; for the default shape they're available via the in-memory `CheckReport` if you embed the orchestrator. The CLI ndjson default shape omits them today (it's an additive break-glass field — file an issue if you want them surfaced in default ndjson too).
 
 Summary (always the last line, marked with `_summary: true`):
 
@@ -380,6 +385,119 @@ When a domain is cited by multiple URLs in the same query response, all of them 
 ```
 
 The full TypeScript shape is exported as `CheckReport` from `cli/check.ts`.
+
+## Output shapes (`--format`)
+
+Two formats supported. The default (`--format auto-geo`) is the stable `CheckReport` / `MultiEngineCheckReport` shape shown above and is byte-for-byte identical to v0.4.2. Pass `--format geo-audit` when you want output that's interchangeable with Shadow's in-product `geoAudit` agent tool (`packages/core/src/lib/tools/geoAudit.tool.ts`) — useful for any downstream consumer that already expects that contract.
+
+### `--format auto-geo` (default)
+
+```jsonc
+// --json --format auto-geo (default)
+{
+  "domain": "shadow.inc",
+  "engine": "perplexity",
+  "model": "sonar",
+  "results": [
+    {
+      "query": "what is GEO",
+      "cited": true,
+      "citations": [
+        {
+          "url": "https://www.shadow.inc/resources/what-is-geo",
+          "rank": 1,
+          "totalCitationsForQuery": 5,
+        },
+      ],
+      "rawSources": [...],
+      "answer": "GEO stands for…",
+      "fanOutQueries": ["what is GEO", "generative engine optimization"],
+      "usage": { "totalTokens": 486, "estimatedCostUsd": 0.000486 },
+    },
+  ],
+  "summary": { ... },
+}
+```
+
+### `--format geo-audit`
+
+`--json` returns a single `{ rows, summary }` OBJECT (not an array — easier to consume than a bare list):
+
+```jsonc
+// --json --format geo-audit
+{
+  "rows": [
+    {
+      "prompt": "what is GEO", // (was: query)
+      "provider": "perplexity", // openai → "chatgpt"
+      "model": "sonar",
+      "responseText": "GEO stands for…", // (was: answer)
+      "citations": [
+        {
+          "url": "https://www.shadow.inc/resources/what-is-geo",
+          "title": "What is GEO?",
+        },
+      ],
+      "fanOutQueries": ["what is GEO", "generative engine optimization"],
+      "inputTokens": 102, // (was: usage.promptTokens)
+      "outputTokens": 384, // (was: usage.completionTokens)
+      "reasoningTokens": null, // not surfaced by check today
+      "moneySpent": 0.000486, // (was: usage.estimatedCostUsd)
+      "webSearchEnabled": true, // every engine grounds
+      "datetime": "2026-06-04T18:01:23.000Z",
+      "error": null,
+    },
+  ],
+  "summary": {
+    "promptCount": 1,
+    "providerCount": 1,
+    "totalQueries": 1,
+    "successCount": 1,
+    "errorCount": 0,
+    "totalCitations": 1,
+    "totalMoneySpent": 0.000486,
+    "providers": ["perplexity"],
+    "errors": [],
+  },
+}
+```
+
+`--ndjson --format geo-audit` streams one `GeoAuditRow` per line as each query resolves, then a final `_summary` line. The summary line carries BOTH the default summary AND the geoAudit summary fields layered on top — so both consumer styles work:
+
+```jsonc
+// each query line is a GeoAuditRow as above
+{ "prompt": "q1", "provider": "perplexity", "model": "sonar", ... }
+{ "prompt": "q2", "provider": "perplexity", "model": "sonar", ... }
+// final summary line
+{
+  "_summary": true,
+  "domain": "shadow.inc", "engine": "perplexity", "model": "sonar",
+  "citedQueryCount": 2, "totalQueries": 2, "coveragePct": 100,
+  // geoAudit summary fields:
+  "promptCount": 2, "providerCount": 1, "totalMoneySpent": ...,
+  "providers": ["perplexity"], "errors": []
+}
+```
+
+**Provider name mapping.** `openai` is mapped to `chatgpt` in the geoAudit output to match the in-product tool's public-facing label. Every other engine name (`perplexity`, `anthropic`, `gemini`, `xai`) passes through unchanged.
+
+**Human output is unchanged** under `--format geo-audit` — the flag is JSON-shape-only. Pipe stdout to a file or to `jq` to consume the geoAudit shape; the terminal report still uses the auto-geo presentation.
+
+The exported types live in `cli/format-geo-audit.ts`: `GeoAuditRow`, `GeoAuditSummary`, `GeoAuditOutput`.
+
+## Fan-out queries
+
+A "fan-out query" is the literal sub-query an engine ran while grounding — the question(s) it sent to its web-search backend after expanding the user prompt. v0.5.0 captures these per-engine where the provider exposes them:
+
+| Engine     | Source                                                | Surfaced |
+| ---------- | ----------------------------------------------------- | -------- |
+| perplexity | `response.search_queries[]` (newer Sonar shapes only) | yes      |
+| openai     | `output[].web_search_call.action.query`               | yes      |
+| anthropic  | `content[].server_tool_use.input.query`               | yes      |
+| gemini     | `candidates[0].groundingMetadata.webSearchQueries[]`  | yes      |
+| xai        | not exposed in the chat-completions Live Search shape | `[]`     |
+
+Fan-out queries are surfaced as `fanOutQueries: string[]` (always an array — never undefined) on every result. They power competitor-mention analysis (what is the engine ACTUALLY searching for when the user asks X?), entity-coverage gaps, and query-side keyword discovery for `auto-geo write` follow-ups.
 
 ## CI integration
 

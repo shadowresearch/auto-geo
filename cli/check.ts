@@ -50,6 +50,13 @@ export type CheckQueryResult = {
   rawSources: CitedSource[];
   /** Engine's natural-language synthesis. Kept for `--json` introspection. */
   answer: string;
+  /**
+   * Literal sub-queries the engine ran to ground its answer. Populated
+   * when the engine exposes them (Gemini, Anthropic, OpenAI Responses,
+   * newer Perplexity tiers); empty when it doesn't (xAI Live Search).
+   * Always an array — never undefined — so consumers can iterate freely.
+   */
+  fanOutQueries: string[];
   /** Per-query usage (tokens, est. cost). */
   usage?: EngineResponse["usage"];
   /** Populated if this specific query failed; the rest of the run continues. */
@@ -126,13 +133,19 @@ export type RunCheckOptions = {
 };
 
 /**
- * Default per-query parallelism for `runCheck`. Bumped from 2 → 6 in
- * v0.4.1 after real-world agent runs were leaving throughput on the
- * floor; 6 is safe under every supported engine's default-tier rate
- * limit (Perplexity Sonar tolerates ~50 RPM, OpenAI Responses
- * comfortably handles 6+ concurrent, etc.).
+ * Default per-query parallelism for `runCheck`. Bumped 6 → 12 in v0.5.0
+ * after Perplexity Sonar Pro accounts proved they comfortably handle
+ * sustained 12-wide parallelism; the existing exponential-backoff retry
+ * on 429 catches anyone hitting a per-account cap. Lower for
+ * restrictive plans, raise for high-tier API keys. Recommended cap is
+ * ~20 per engine; bigger batch jobs against a single fast engine can
+ * push `--concurrency 50` safely.
+ *
+ * Under `runCheckMulti` (`--engine all`) each engine gets its OWN pool
+ * of this size — so 5 engines × concurrency 12 == up to 60 in-flight
+ * requests, each respecting its own engine's rate limit.
  */
-export const DEFAULT_CONCURRENCY = 6;
+export const DEFAULT_CONCURRENCY = 12;
 
 /** Default per-query outer timeout. See {@link RunCheckOptions.timeoutPerQuerySec}. */
 export const DEFAULT_TIMEOUT_PER_QUERY_SEC = 60;
@@ -302,6 +315,7 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
         citations: [],
         rawSources: [],
         answer: "",
+        fanOutQueries: [],
         error: "skipped — max runtime exceeded",
       };
       emit(skipped, i);
@@ -371,6 +385,7 @@ async function runOneQuery(
         citations,
         rawSources: sources,
         answer: response.answer,
+        fanOutQueries: response.fanOutQueries ?? [],
         usage: response.usage,
       };
     } catch (err) {
@@ -394,6 +409,7 @@ async function runOneQuery(
     citations: [],
     rawSources: [],
     answer: "",
+    fanOutQueries: [],
     error: lastError instanceof Error ? lastError.message : String(lastError),
   };
 }
@@ -557,6 +573,15 @@ export type MultiEngineCheckReport = {
  * both the per-engine reports and a union roll-up. Each engine's run is
  * independent — a failure in one engine never short-circuits the
  * others (its summary just carries the per-query errors as usual).
+ *
+ * **Per-engine concurrency pools.** Each engine gets its OWN worker
+ * pool of size `concurrency` (default `DEFAULT_CONCURRENCY = 12`).
+ * Pools execute fully in parallel across engines via `Promise.all`,
+ * which means at full saturation the in-flight request count is
+ * `engines.length × concurrency` — but each engine's per-account rate
+ * limit is enforced INDEPENDENTLY by its own pool. With the v0.5.0
+ * default that's up to 5 engines × 12 = 60 concurrent requests for a
+ * fully-credentialed `--engine all` run.
  */
 export async function runCheckMulti(
   opts: RunCheckMultiOptions
@@ -564,6 +589,10 @@ export async function runCheckMulti(
   if (opts.engines.length === 0) {
     throw new Error("runCheckMulti requires at least one engine");
   }
+  // One `runCheck` invocation per engine — each carries its own
+  // bounded worker pool. `Promise.all` lets the engine pools tick
+  // concurrently, so a slow engine never blocks a fast one and a
+  // single engine's rate-limit retry never delays the others.
   const perEngineReports = await Promise.all(
     opts.engines.map((engine) =>
       runCheck({

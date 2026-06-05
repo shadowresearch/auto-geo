@@ -518,6 +518,40 @@ describe("createPerplexityEngine", () => {
     );
   });
 
+  it("captures search_queries as fanOutQueries when present (newer Sonar shapes)", async () => {
+    const fakeFetch: typeof globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "ans" } }],
+          citations: ["https://www.shadow.inc/p"],
+          search_queries: ["what is GEO", "generative engine optimization"],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+        { status: 200 }
+      );
+    const engine = createPerplexityEngine({ apiKey: "test", fetch: fakeFetch });
+    const res = await engine.askWithCitations("q");
+    expect(res.fanOutQueries).toEqual([
+      "what is GEO",
+      "generative engine optimization",
+    ]);
+  });
+
+  it("defaults fanOutQueries to [] when search_queries is absent (older Sonar)", async () => {
+    const fakeFetch: typeof globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "ans" } }],
+          citations: ["https://www.shadow.inc/p"],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+        { status: 200 }
+      );
+    const engine = createPerplexityEngine({ apiKey: "test", fetch: fakeFetch });
+    const res = await engine.askWithCitations("q");
+    expect(res.fanOutQueries).toEqual([]);
+  });
+
   it("throws on non-OK HTTP response", async () => {
     const fakeFetch: typeof globalThis.fetch = async () =>
       new Response("rate limited", { status: 429, statusText: "Too Many" });
@@ -691,8 +725,8 @@ describe("runCheckMulti", () => {
 // ── runCheck — perf knobs (v0.4.1) ─────────────────────────────────
 
 describe("runCheck — defaults", () => {
-  it("exposes a default concurrency of 6 (bumped from 2 in v0.4.1)", () => {
-    expect(DEFAULT_CONCURRENCY).toBe(6);
+  it("exposes a default concurrency of 12 (bumped from 6 in v0.5.0)", () => {
+    expect(DEFAULT_CONCURRENCY).toBe(12);
   });
 
   it("exposes a default per-query timeout of 60s", () => {
@@ -1022,6 +1056,38 @@ describe("parseArgs — check subcommand", () => {
         "--ndjson",
       ])
     ).toThrow(/mutually exclusive/);
+  });
+
+  it("defaults --format to 'auto-geo' and parses 'geo-audit'", () => {
+    const def = parseArgs(["check", "--domain", "shadow.inc", "--query", "q"]);
+    if (def.command !== "check") throw new Error("expected check");
+    expect(def.format).toBe("auto-geo");
+
+    const ga = parseArgs([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "q",
+      "--format",
+      "geo-audit",
+    ]);
+    if (ga.command !== "check") throw new Error("expected check");
+    expect(ga.format).toBe("geo-audit");
+  });
+
+  it("rejects an unknown --format value", () => {
+    expect(() =>
+      parseArgs([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q",
+        "--format",
+        "csv",
+      ])
+    ).toThrow(/--format must be/);
   });
 });
 
@@ -1446,5 +1512,288 @@ describe("run() — check subcommand", () => {
     ]);
     expect(code).toBe(2);
     expect(err.join("\n")).toContain("mutually exclusive");
+  });
+
+  // ── --format geo-audit ─────────────────────────────────────────
+
+  it("--format geo-audit + --json emits the rows + summary object shape", async () => {
+    process.env.PERPLEXITY_API_KEY = "test";
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "GEO is …" } }],
+          citations: ["https://www.shadow.inc/p"],
+          search_queries: ["fanout query 1"],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        }),
+        { status: 200 }
+      )) as typeof globalThis.fetch;
+
+    const { out } = captureConsole();
+    const code = await run([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "what is GEO",
+      "--json",
+      "--format",
+      "geo-audit",
+    ]);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(out.join("\n"));
+    // Object with rows + summary — NOT the CheckReport shape.
+    expect(Array.isArray(parsed.rows)).toBe(true);
+    expect(parsed.rows).toHaveLength(1);
+    const row = parsed.rows[0];
+    expect(row.prompt).toBe("what is GEO");
+    expect(row.provider).toBe("perplexity");
+    expect(row.responseText).toBe("GEO is …");
+    expect(row.fanOutQueries).toEqual(["fanout query 1"]);
+    expect(row.inputTokens).toBe(10);
+    expect(row.outputTokens).toBe(20);
+    expect(row.webSearchEnabled).toBe(true);
+    expect(row.error).toBeNull();
+    expect(parsed.summary).toMatchObject({
+      promptCount: 1,
+      providerCount: 1,
+      totalQueries: 1,
+      successCount: 1,
+      errorCount: 0,
+      providers: ["perplexity"],
+    });
+  });
+
+  it("--format geo-audit + --ndjson streams GeoAuditRow lines + a fused summary", async () => {
+    process.env.PERPLEXITY_API_KEY = "test";
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "ans" } }],
+          citations: ["https://www.shadow.inc/p"],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+        { status: 200 }
+      )) as typeof globalThis.fetch;
+
+    const chunks: string[] = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((c: unknown) => {
+      chunks.push(typeof c === "string" ? c : String(c));
+      return true;
+    }) as typeof process.stdout.write;
+    captureConsole();
+
+    try {
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q1",
+        "--query",
+        "q2",
+        "--ndjson",
+        "--format",
+        "geo-audit",
+      ]);
+      expect(code).toBe(0);
+    } finally {
+      process.stdout.write = origWrite;
+    }
+
+    const lines = chunks
+      .join("")
+      .split("\n")
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(3); // 2 rows + 1 summary
+    const r1 = JSON.parse(lines[0]!);
+    // GeoAuditRow shape — not the default ndjson shape.
+    expect(r1.prompt).toMatch(/^q[12]$/);
+    expect(r1.provider).toBe("perplexity");
+    expect(r1.responseText).toBe("ans");
+    expect(r1.fanOutQueries).toEqual([]);
+    // Summary line: carries BOTH the default summary AND the geoAudit
+    // summary fields (additive — both consumers happy).
+    const summary = JSON.parse(lines[2]!);
+    expect(summary._summary).toBe(true);
+    expect(summary.totalQueries).toBe(2);
+    expect(summary.coveragePct).toBe(100); // default summary survives
+    expect(summary.promptCount).toBe(2); // geoAudit summary layered on top
+    expect(summary.providerCount).toBe(1);
+    expect(summary.providers).toEqual(["perplexity"]);
+  });
+
+  it("--format geo-audit maps openai to provider=chatgpt", async () => {
+    process.env.OPENAI_API_KEY = "test";
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "web_search_call",
+              action: { type: "search", query: "what is GEO" },
+            },
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: "GEO answer",
+                  annotations: [
+                    {
+                      type: "url_citation",
+                      url: "https://www.shadow.inc/p",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          usage: { input_tokens: 5, output_tokens: 10, total_tokens: 15 },
+        }),
+        { status: 200 }
+      )) as typeof globalThis.fetch;
+    const { out } = captureConsole();
+    const code = await run([
+      "check",
+      "--domain",
+      "shadow.inc",
+      "--query",
+      "what is GEO",
+      "--engine",
+      "openai",
+      "--json",
+      "--format",
+      "geo-audit",
+    ]);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(out.join("\n"));
+    expect(parsed.rows[0].provider).toBe("chatgpt");
+    expect(parsed.rows[0].fanOutQueries).toEqual(["what is GEO"]);
+    expect(parsed.summary.providers).toEqual(["chatgpt"]);
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  // ── per-engine concurrency pools ───────────────────────────────
+
+  it("--engine all gives each engine its own concurrency pool (parallel runs)", async () => {
+    const originals = {
+      PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      XAI_API_KEY: process.env.XAI_API_KEY,
+    };
+    for (const k of Object.keys(originals)) delete process.env[k];
+    process.env.PERPLEXITY_API_KEY = "test";
+    process.env.OPENAI_API_KEY = "test";
+
+    // Track max-in-flight per engine — if pools are truly parallel
+    // across engines, both engines should see in-flight >= 2 even
+    // though `--concurrency 2` only allows 2 in-flight per pool.
+    const perEngineInFlight: Record<string, number> = {
+      perplexity: 0,
+      openai: 0,
+    };
+    const perEngineMax: Record<string, number> = {
+      perplexity: 0,
+      openai: 0,
+    };
+    let crossEngineConcurrent = 0;
+    let crossEngineMax = 0;
+
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const engine = url.includes("perplexity.ai")
+          ? "perplexity"
+          : url.includes("api.openai.com")
+            ? "openai"
+            : null;
+        if (!engine) throw new Error(`unexpected fetch ${url}`);
+
+        perEngineInFlight[engine] = (perEngineInFlight[engine] ?? 0) + 1;
+        perEngineMax[engine] = Math.max(
+          perEngineMax[engine] ?? 0,
+          perEngineInFlight[engine] ?? 0
+        );
+        crossEngineConcurrent += 1;
+        crossEngineMax = Math.max(crossEngineMax, crossEngineConcurrent);
+
+        // Tiny delay so concurrent requests actually overlap.
+        await new Promise((r) => setTimeout(r, 10));
+
+        perEngineInFlight[engine] -= 1;
+        crossEngineConcurrent -= 1;
+
+        if (engine === "perplexity") {
+          return new Response(
+            JSON.stringify({
+              choices: [{ message: { content: "x" } }],
+              citations: ["https://www.shadow.inc/p"],
+              usage: {
+                prompt_tokens: 1,
+                completion_tokens: 1,
+                total_tokens: 2,
+              },
+            }),
+            { status: 200 }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            output: [
+              {
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: "x",
+                    annotations: [
+                      { type: "url_citation", url: "https://elsewhere/x" },
+                    ],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          }),
+          { status: 200 }
+        );
+      }) as typeof globalThis.fetch;
+
+      captureConsole();
+      const code = await run([
+        "check",
+        "--domain",
+        "shadow.inc",
+        "--query",
+        "q1",
+        "--query",
+        "q2",
+        "--query",
+        "q3",
+        "--query",
+        "q4",
+        "--engine",
+        "all",
+        "--concurrency",
+        "2",
+      ]);
+      expect(code).toBe(0);
+      // Per-engine pool of 2 → both engines saturate independently
+      // at 2 in-flight each, and ACROSS engines we see > 2 in flight
+      // simultaneously (the proof the engine pools run in parallel).
+      expect(perEngineMax.perplexity).toBeGreaterThanOrEqual(2);
+      expect(perEngineMax.openai).toBeGreaterThanOrEqual(2);
+      expect(crossEngineMax).toBeGreaterThan(2);
+    } finally {
+      for (const [k, v] of Object.entries(originals)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 });

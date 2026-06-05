@@ -555,10 +555,29 @@ npx auto-geo check --domain shadow.inc --queries-file geo/critical-queries.txt &
 
 Engines today:
 
-- **`perplexity`** (default) — full Perplexity Sonar API integration. Requires `PERPLEXITY_API_KEY`. `--model sonar-pro` for the higher-quality tier.
-- **`openai`** — scaffolded but not yet wired (throws "not yet implemented"). The Responses-API `web_search_preview` citation parser is in place; the HTTP call lands in a follow-up.
+- **`perplexity`** (default) — Sonar / Sonar Pro. Requires `PERPLEXITY_API_KEY`.
+- **`openai`** — Responses API + `web_search_preview`. Requires `OPENAI_API_KEY`.
+- **`anthropic`** — Messages API + `web_search` tool. Requires `ANTHROPIC_API_KEY`.
+- **`gemini`** — generateContent + `google_search` grounding. Requires `GOOGLE_API_KEY` (or `GEMINI_API_KEY`).
+- **`xai`** (alias: `grok`) — chat completions + Live Search. Requires `XAI_API_KEY`.
+- **`all`** — runs every engine whose API key is set in env, produces a union-coverage roll-up. Each engine gets its OWN concurrency pool (default `--concurrency 12`) so 5 engines × 12 == up to 60 parallel requests.
 
-See [`docs/check.md`](./docs/check.md) for the full flag reference, JSON schema, domain-matching rules, rank semantics, and CI examples.
+### Interoperate with Shadow's in-product `geoAudit` tool (`--format geo-audit`)
+
+`auto-geo check` can emit per-row output that matches Shadow's internal `geoAudit` agent tool shape byte-for-byte (the `LlmQueryResult` interface in `packages/core/src/lib/tools/geoAudit.tool.ts`) — useful for downstream consumers that already expect that contract:
+
+```bash
+npx auto-geo check \
+  --domain shadow.inc \
+  --query "what is GEO" \
+  --engine all \
+  --json --format geo-audit \
+  | jq '.rows[] | { prompt, provider, fanOutQueries }'
+```
+
+Each row carries `{ prompt, provider, model, responseText, citations, fanOutQueries, inputTokens, outputTokens, reasoningTokens, moneySpent, webSearchEnabled, datetime, error }`. v0.5.0 also captures **fan-out queries** (the sub-queries each engine ran while grounding) per-row from Perplexity, OpenAI, Anthropic, and Gemini.
+
+See [`docs/check.md`](./docs/check.md) for the full flag reference, output shapes side-by-side, fan-out-query coverage table, domain-matching rules, rank semantics, and CI examples.
 
 ---
 

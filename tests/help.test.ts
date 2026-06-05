@@ -130,6 +130,9 @@ describe("renderCommandHelp — check", () => {
     expect(out).toContain("--ndjson");
     expect(out).toContain("--answers");
     expect(out).toContain("--max-runtime");
+    // v0.5.0 additions:
+    expect(out).toContain("--format");
+    expect(out).toContain("geo-audit");
     // Env vars surfaced.
     expect(out).toContain("PERPLEXITY_API_KEY");
     expect(out).toContain("XAI_API_KEY");

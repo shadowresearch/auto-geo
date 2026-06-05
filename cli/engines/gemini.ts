@@ -148,10 +148,24 @@ export function createGeminiEngine(opts: EngineFactoryOptions = {}): Engine {
       const data = (await res.json()) as GeminiGenerateContentResponse;
       const answer = extractGeminiAnswer(data);
       const citations = parseGeminiCitations(data);
+      const fanOutQueries = parseGeminiFanOutQueries(data);
       const usage = estimateUsage(model, data.usageMetadata);
-      return { answer, citations, usage };
+      return { answer, citations, fanOutQueries, usage };
     },
   };
+}
+
+/**
+ * Extract `candidates[0].groundingMetadata.webSearchQueries` — the
+ * literal Google Search queries Gemini ran while grounding. Always
+ * present when grounding fires; returns `[]` otherwise.
+ */
+export function parseGeminiFanOutQueries(
+  data: GeminiGenerateContentResponse
+): string[] {
+  const raw = data.candidates?.[0]?.groundingMetadata?.webSearchQueries;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((q): q is string => typeof q === "string" && q.length > 0);
 }
 
 export function extractGeminiAnswer(
