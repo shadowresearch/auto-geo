@@ -893,17 +893,19 @@ describe("runCheck — retry on transient failures", () => {
 
 describe("runCheck — maxRuntimeSec", () => {
   it("marks pending queries as skipped when the deadline trips", async () => {
-    // Generous timing margins so the test stays stable on slow CI
-    // runners: q1 is a fast 10ms; q2 is a long 2s; deadline at 300ms.
-    // q1 always completes well within the deadline; q2 always blows
-    // through it; q3 is never started.
+    // Margins generous enough to survive slow CI runners — the prior
+    // 10ms/2000ms/0.3s setup raced at the millisecond boundary on
+    // both Node 18 and Node 22 and produced repeated flakes.
     let n = 0;
     const engine = {
       name: "slow",
       model: "x",
       async askWithCitations() {
         n += 1;
-        const delay = n === 1 ? 10 : 2000;
+        // q1 returns fast (~50ms); q2 hangs well past the deadline so
+        // its deadline-capped per-attempt timeout is what fires; q3
+        // is never started.
+        const delay = n === 1 ? 50 : 5000;
         await new Promise((r) => setTimeout(r, delay));
         return {
           answer: "",
@@ -920,7 +922,7 @@ describe("runCheck — maxRuntimeSec", () => {
       concurrency: 1, // serialize so we hit the deadline mid-run
       timeoutPerQuerySec: 60,
       maxRetries: 0,
-      maxRuntimeSec: 0.3, // 300ms — plenty of margin for q1 + deadline tick
+      maxRuntimeSec: 1, // 1s — q1 (~50ms) + q2-cap + q3 skipped
       onResult: (r) => seen.push(r),
     });
     // a completes; b times out via the runtime-deadline cap on its
