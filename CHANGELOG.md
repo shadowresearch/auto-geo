@@ -8,6 +8,20 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-06-05
+
+### Fixed
+
+- **`auto-geo write` / `fix` no longer crash against OpenAI.** The Vercel AI SDK converts our Zod schema to JSON Schema (via `zod-to-json-schema`), which emits `format: "uri"` for every `z.string().url()` field. OpenAI's Responses API + structured output (`response_format: { type: "json_schema", strict: true }`) only accepts a narrow allowlist of format hints and rejects `"uri"` — so every `write` and `fix` call against `--provider openai` failed at schema-validation time with `Invalid schema for response_format 'response': … 'uri' is not a valid format` before any LLM invocation. The schema is now sanitized before being passed to `generateObject`: deep-walk the generated JSON Schema, strip every `format` not on OpenAI's allowlist (`date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6`, `uuid`). URL validity is still enforced — we re-validate the model's output against the strict original `resourcePublishSchema` (which keeps `.url()`), and the existing self-correction loop re-prompts on schema-parse failure. Applied for every provider, not just OpenAI, since the sanitized schema is smaller and more portable across SDKs.
+
+### Test coverage
+
+- 476 → 488 tests (+12): every URL field's `format` stripped, allowlisted formats preserved, original Zod schema unmutated.
+
+### Notes
+
+- `zod-to-json-schema` is now an explicit `dependencies` pin (was transitive via the AI SDK). CLI binary delta < 1 KB.
+
 ## [0.5.0] — 2026-06-05
 
 ### Added
@@ -225,7 +239,8 @@ The following are considered stable and subject to semantic versioning:
 - Only Vercel KV / Upstash, Supabase, and in-memory storage adapters ship in v0.1. Community adapters welcome.
 - Only Next.js App Router and Hono HTTP adapters ship in v0.1. Express and Fastify adapters are on the roadmap.
 
-[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/shadowresearch/auto-geo/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/shadowresearch/auto-geo/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/shadowresearch/auto-geo/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/shadowresearch/auto-geo/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/shadowresearch/auto-geo/compare/v0.4.0...v0.4.1
