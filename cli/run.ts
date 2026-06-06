@@ -52,6 +52,13 @@ import {
   userPassedFlag,
   type AutoGeoConfig,
 } from "./config";
+import {
+  parseInitArgs,
+  renderInitJson,
+  renderInitOutcome,
+  runInit,
+  type InitArgs,
+} from "./init";
 
 /**
  * Argument parser + top-level `run` for the `auto-geo` CLI. Lives in
@@ -195,12 +202,19 @@ export type ParsedArgs =
   | FixArgs
   | WriteArgs
   | CheckArgs
+  | InitArgs
   | HelpArgs
   | VersionArgs;
 
 // ── Dispatcher ────────────────────────────────────────────────────
 
-const SUBCOMMANDS = new Set<CommandName>(["doctor", "fix", "write", "check"]);
+const SUBCOMMANDS = new Set<CommandName>([
+  "doctor",
+  "fix",
+  "write",
+  "check",
+  "init",
+]);
 
 function isSubcommand(s: string | undefined): s is CommandName {
   return !!s && SUBCOMMANDS.has(s as CommandName);
@@ -257,6 +271,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (first === "fix") return parseFixArgs(argv.slice(1));
   if (first === "check") return parseCheckArgs(argv.slice(1));
   if (first === "doctor") return parseDoctorArgs(argv.slice(1));
+  if (first === "init") return parseInitArgs(argv.slice(1));
   // Bare `<url>` dispatches to doctor for v0.1.3 back-compat.
   return parseDoctorArgs(argv);
 }
@@ -590,6 +605,11 @@ export async function run(argv: string[]): Promise<number> {
     console.log(await renderVersion());
     return 0;
   }
+
+  // `init` runs BEFORE config loading — it creates the file that
+  // loadConfig would read, so loading first would be circular and
+  // would surface schema errors from a half-written config.
+  if (parsed.command === "init") return runInitCommand(parsed);
 
   // Load config once for the lifetime of this invocation. Errors
   // (malformed JSON, schema violation) surface as exit 2 — config
@@ -1503,4 +1523,34 @@ function formatYmd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+// ── init runner ───────────────────────────────────────────────────
+
+async function runInitCommand(parsed: InitArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+  try {
+    const outcome = await runInit({ yes: parsed.yes, force: parsed.force });
+    if (parsed.json) {
+      console.log(renderInitJson(outcome));
+    } else {
+      console.log(renderInitOutcome(outcome, { colors }));
+    }
+    return outcome.refusedExisting ? 1 : 0;
+  } catch (err) {
+    if (parsed.json) {
+      console.log(
+        JSON.stringify(
+          { error: err instanceof Error ? err.message : String(err) },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(
+        `auto-geo init: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    return 1;
+  }
 }

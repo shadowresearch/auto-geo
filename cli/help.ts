@@ -43,9 +43,10 @@ export const NPM_URL = "https://www.npmjs.com/package/auto-geo";
 export const SHADOW_URL = "https://www.shadow.inc";
 export const GLOBAL_TAGLINE = "publishing engine for GEO resource pages";
 
-export type CommandName = "doctor" | "fix" | "write" | "check";
+export type CommandName = "init" | "doctor" | "fix" | "write" | "check";
 
 const COMMAND_SUMMARIES: Record<CommandName, string> = {
+  init: "Scaffold auto-geo.config.json + .env.local for first-run setup",
   doctor: "Audit a page for citation readiness",
   fix: "Rewrite a page so it passes the doctor checks",
   write: "Generate publish-ready resource pages from target queries",
@@ -98,6 +99,49 @@ export type CommandHelp = {
 // ── Help content (the single source of truth for every renderer) ───
 
 export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
+  init: {
+    command: "init",
+    tagline: "scaffold auto-geo.config.json + .env.local for first-run setup",
+    usage: ["auto-geo init [options]"],
+    sections: [
+      {
+        heading: "Options",
+        items: [
+          {
+            flag: "-y, --yes",
+            description:
+              "Non-interactive — write a template config without prompting",
+          },
+          {
+            flag: "--force",
+            description: "Overwrite an existing auto-geo.config.json",
+          },
+          {
+            flag: "--json",
+            description: "Emit a machine-readable outcome",
+          },
+          {
+            flag: "--no-color",
+            description: "Disable ANSI colors",
+          },
+        ],
+      },
+    ],
+    examples: [
+      {
+        comment: "Interactive setup — answer a handful of questions",
+        lines: ["auto-geo init"],
+      },
+      {
+        comment: "Non-interactive — drop a template file you'll edit by hand",
+        lines: ["auto-geo init --yes"],
+      },
+    ],
+    note: "Never overwrites an existing .env.local. API keys NEVER live in the config file — they stay in .env.local (gitignored).",
+    exitCode: "Exit code: 0 on success, 1 if the config already exists (use --force).",
+    docsUrl:
+      "https://github.com/shadowresearch/auto-geo/blob/main/docs/init.md",
+  },
   doctor: {
     command: "doctor",
     tagline: "audit a page for citation readiness",
