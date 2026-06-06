@@ -8,6 +8,17 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-06-05
+
+### Fixed
+
+- **`auto-geo write` / `fix` no longer crash against OpenAI or Anthropic with `Schema type is missing` / `schema must have a 'type' key`.** The v0.5.1 fix routed `resourcePublishSchema` through `zod-to-json-schema@3.25.2`, which targets zod 3's internal representation; against the zod 4 schemas this package now uses, it silently returned an empty `{ "$schema": "http://json-schema.org/draft-07/schema#" }` wrapper — no `type`, no `properties`. The sanitizer then had nothing to walk, and both OpenAI's Responses API and Anthropic's Messages API rejected the empty schema at validation time before any LLM call. Switched to zod 4's native `z.toJSONSchema()`, which understands the schema and emits a complete JSON Schema. The v0.5.1 sanitizer still runs on the result to strip `format: "uri"` and any other non-OpenAI-allowlist string formats.
+
+### Notes
+
+- `zod-to-json-schema` is no longer a runtime dependency (was added in v0.5.1, removed here). CLI binary delta < 1 KB.
+- The package's peer-dep range stays `zod ^3.23.0 || ^4.0.0` — consumers of `auto-geo/schema` are unaffected. The CLI bundles zod 4 internally for its own schema-conversion needs.
+
 ## [0.5.1] — 2026-06-05
 
 ### Fixed

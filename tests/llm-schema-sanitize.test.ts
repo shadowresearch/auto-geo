@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   buildSanitizedResourceJsonSchema,
   OPENAI_STRUCTURED_OUTPUT_STRING_FORMATS,
@@ -75,9 +74,9 @@ describe("buildSanitizedResourceJsonSchema", () => {
     // Re-converting the original schema after sanitization should still
     // produce `format: "uri"` — proving we didn't mutate the Zod schema.
     buildSanitizedResourceJsonSchema();
-    const fresh = zodToJsonSchema(
-      resourcePublishSchema as unknown as z.ZodTypeAny,
-      { $refStrategy: "none" }
+    const fresh = z.toJSONSchema(
+      resourcePublishSchema as unknown as z.ZodType,
+      { unrepresentable: "any" }
     );
     expect(collectFormats(fresh)).toContain("uri");
   });

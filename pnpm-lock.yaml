@@ -10,10 +10,10 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.81
-        version: 3.0.81(zod@3.25.76)
+        version: 3.0.81(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: ^3.0.67
-        version: 3.0.67(zod@3.25.76)
+        version: 3.0.67(zod@4.4.3)
       '@supabase/supabase-js':
         specifier: ^2.0.0
         version: 2.107.0
@@ -22,7 +22,7 @@ importers:
         version: 3.0.0
       ai:
         specifier: ^6.0.196
-        version: 6.0.196(zod@3.25.76)
+        version: 6.0.196(zod@4.4.3)
       hono:
         specifier: ^4.0.0
         version: 4.12.23
@@ -32,9 +32,6 @@ importers:
       next:
         specifier: '>=14'
         version: 15.5.19(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      zod-to-json-schema:
-        specifier: ^3.25.2
-        version: 3.25.2(zod@3.25.76)
     devDependencies:
       '@eslint/js':
         specifier: ^9.0.0
@@ -79,8 +76,8 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.41)(jsdom@25.0.1)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
 
   examples/cloudflare-workers:
     dependencies:
@@ -3660,6 +3657,12 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.27(zod@3.25.76)
       zod: 3.25.76
 
+  '@ai-sdk/anthropic@3.0.81(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.27(zod@4.4.3)
+      zod: 4.4.3
+
   '@ai-sdk/gateway@3.0.124(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
@@ -3667,11 +3670,24 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 3.25.76
 
+  '@ai-sdk/gateway@3.0.124(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.27(zod@4.4.3)
+      '@vercel/oidc': 3.2.0
+      zod: 4.4.3
+
   '@ai-sdk/openai@3.0.67(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
       '@ai-sdk/provider-utils': 4.0.27(zod@3.25.76)
       zod: 3.25.76
+
+  '@ai-sdk/openai@3.0.67(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.27(zod@4.4.3)
+      zod: 4.4.3
 
   '@ai-sdk/provider-utils@4.0.27(zod@3.25.76)':
     dependencies:
@@ -3679,6 +3695,13 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.0
       zod: 3.25.76
+
+  '@ai-sdk/provider-utils@4.0.27(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.1.0
+      zod: 4.4.3
 
   '@ai-sdk/provider@3.0.10':
     dependencies:
@@ -4908,6 +4931,14 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       zod: 3.25.76
 
+  ai@6.0.196(zod@4.4.3):
+    dependencies:
+      '@ai-sdk/gateway': 3.0.124(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.27(zod@4.4.3)
+      '@opentelemetry/api': 1.9.1
+      zod: 4.4.3
+
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
       ajv: 8.20.0
@@ -4975,6 +5006,7 @@ snapshots:
       ai: 6.0.196(zod@3.25.76)
       linkedom: 0.18.12
       zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@supabase/supabase-js': 2.107.0
       '@vercel/kv': 3.0.0
