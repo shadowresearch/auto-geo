@@ -431,10 +431,9 @@ export function buildSanitizedResourceJsonSchema(): JsonSchemaLike {
   //
   // We pass `unrepresentable: "any"` so any unmappable type degrades to
   // `{}` instead of throwing — defensive against future schema growth.
-  const raw = z.toJSONSchema(
-    resourcePublishSchema as unknown as z.ZodType,
-    { unrepresentable: "any" }
-  );
+  const raw = z.toJSONSchema(resourcePublishSchema as unknown as z.ZodType, {
+    unrepresentable: "any",
+  });
   return sanitizeJsonSchemaForProviders(raw) as JsonSchemaLike;
 }
 
