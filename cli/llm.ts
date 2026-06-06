@@ -500,6 +500,23 @@ ${formatIssues(lastIssues)}`;
     // and the sanitization step removed the `format: "uri"` URL hints
     // the schema relies on for early rejection of bad URLs. Strict
     // re-validation closes both gaps in one pass.
+    //
+    // Per-provider escape hatches for `resourcePublishSchema`-sized
+    // schemas (v0.6.0):
+    //
+    // - **openai**: `strictJsonSchema: false` disables the
+    //   strict-mode `required`-includes-every-key requirement that
+    //   OpenAI's Responses API enforces. Our schema has optional fields
+    //   (e.g. `author.linkedinUrl`) that strict mode rejects with
+    //   "'required' is required to be supplied and to be an array
+    //   including every key in properties". We rely on Zod's
+    //   re-validation below + the self-correction retry loop instead.
+    //
+    // - **anthropic**: `structuredOutputMode: 'jsonTool'` uses the older
+    //   tool-call JSON path instead of the newer compiled-grammar
+    //   output mode, which has a complexity ceiling our schema exceeds
+    //   ("The compiled grammar is too large, which would cause
+    //   performance issues"). `jsonTool` has no such limit.
     let result;
     try {
       result = await generateObject({
@@ -507,6 +524,10 @@ ${formatIssues(lastIssues)}`;
         system,
         prompt: userPrompt,
         schema: generationSchema,
+        providerOptions: {
+          openai: { strictJsonSchema: false },
+          anthropic: { structuredOutputMode: "jsonTool" },
+        },
       });
     } catch (err) {
       // The SDK throws NoObjectGeneratedError when the model fails to
