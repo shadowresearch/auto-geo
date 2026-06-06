@@ -1,7 +1,6 @@
 import type { LanguageModel } from "ai";
 import { generateObject, jsonSchema, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   resourcePublishSchema,
   type ResourceAuthor,
@@ -423,9 +422,18 @@ function stripUnsupportedFormatsInPlace(
  * code path the generator uses.
  */
 export function buildSanitizedResourceJsonSchema(): JsonSchemaLike {
-  const raw = zodToJsonSchema(
-    resourcePublishSchema as unknown as z.ZodTypeAny,
-    { $refStrategy: "none" }
+  // Use zod 4's NATIVE z.toJSONSchema() — the legacy `zod-to-json-schema`
+  // package targets zod 3's internal representation and returns an
+  // empty `{$schema}` wrapper against zod 4 schemas, which caused the
+  // v0.5.1 regression (`schema must have a 'type' key` from both
+  // OpenAI and Anthropic). zod 4 ships its own converter that handles
+  // all the same features the legacy package did, plus newer ones.
+  //
+  // We pass `unrepresentable: "any"` so any unmappable type degrades to
+  // `{}` instead of throwing — defensive against future schema growth.
+  const raw = z.toJSONSchema(
+    resourcePublishSchema as unknown as z.ZodType,
+    { unrepresentable: "any" }
   );
   return sanitizeJsonSchemaForProviders(raw) as JsonSchemaLike;
 }

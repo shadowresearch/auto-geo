@@ -1,6 +1,6 @@
 {
   "name": "auto-geo",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Publishing engine for GEO resource pages — the pages large language models cite. Built by Shadow, a media research lab building the next generation of AI-powered media intelligence and communications technology.",
   "type": "module",
   "license": "MIT",
@@ -110,8 +110,7 @@
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.67",
     "ai": "^6.0.196",
-    "linkedom": "^0.18.0",
-    "zod-to-json-schema": "^3.25.2"
+    "linkedom": "^0.18.0"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",
@@ -153,7 +152,7 @@
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
     "vitest": "^2.0.0",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "engines": {
     "node": ">=18.17"
