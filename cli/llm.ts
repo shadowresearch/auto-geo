@@ -1,6 +1,7 @@
 import type { LanguageModel } from "ai";
-import { generateObject, NoObjectGeneratedError } from "ai";
+import { generateObject, jsonSchema, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   resourcePublishSchema,
   type ResourceAuthor,
@@ -281,6 +282,154 @@ function truncateText(text: string, maxChars: number): string {
   return `${head}\n\n[…truncated for context window…]\n\n${tail}`;
 }
 
+// ── JSON Schema sanitization (provider portability) ──────────────
+
+/**
+ * String formats OpenAI's Responses API + structured output
+ * (`response_format: { type: "json_schema", strict: true }`) accepts.
+ *
+ * Source: https://platform.openai.com/docs/guides/structured-outputs#supported-schemas
+ *
+ * Notably absent: `"uri"`. The Vercel AI SDK's Zod adapter emits
+ * `format: "uri"` for every `z.string().url()` field via
+ * `zod-to-json-schema`. Passing that through to OpenAI causes a
+ * pre-flight rejection ("'uri' is not a valid format") before any model
+ * tokens are billed, breaking `auto-geo write` and `auto-geo fix` for
+ * every payload that touches `resourcePublishSchema` (i.e. all of them,
+ * since the schema includes `author.linkedinUrl`, `entityRef.url`,
+ * `citation.url`, `image.src`, and `relatedGuides.items[].url`).
+ *
+ * We sanitize for ALL providers — the smaller, more portable schema is
+ * a no-cost change because we always re-validate against the strict
+ * Zod schema after generation (see `generateResourcePayload` below), so
+ * invalid URLs still get caught and trigger the self-correction loop.
+ */
+export const OPENAI_STRUCTURED_OUTPUT_STRING_FORMATS: ReadonlySet<string> =
+  new Set([
+    "date-time",
+    "time",
+    "date",
+    "duration",
+    "email",
+    "hostname",
+    "ipv4",
+    "ipv6",
+    "uuid",
+  ]);
+
+type JsonSchemaLike = { [key: string]: unknown };
+
+/**
+ * Recursively strip every `format` key whose value is not on the
+ * provider allowlist. Mutates a deep clone — the input is left intact.
+ *
+ * Walks all known JSON Schema combinators and nested-schema slots
+ * (`properties`, `additionalProperties`, `items`, `prefixItems`,
+ * `oneOf`/`anyOf`/`allOf`, `not`, `if`/`then`/`else`,
+ * `definitions`/`$defs`, `patternProperties`, `propertyNames`,
+ * `dependentSchemas`) so we don't miss a `format: "uri"` buried inside
+ * a `oneOf` branch or a `$defs` table.
+ */
+export function sanitizeJsonSchemaForProviders(
+  schema: unknown,
+  allowedFormats: ReadonlySet<string> = OPENAI_STRUCTURED_OUTPUT_STRING_FORMATS
+): unknown {
+  const cloned = deepClone(schema);
+  stripUnsupportedFormatsInPlace(cloned, allowedFormats);
+  return cloned;
+}
+
+function deepClone<T>(value: T): T {
+  // structuredClone is available on Node ≥17; the package's `engines`
+  // pins ≥18.17, so this is safe and faster than a JSON round-trip.
+  return structuredClone(value);
+}
+
+const NESTED_SCHEMA_KEYS = [
+  "items",
+  "additionalProperties",
+  "additionalItems",
+  "contains",
+  "propertyNames",
+  "not",
+  "if",
+  "then",
+  "else",
+  "contentSchema",
+] as const;
+
+const NESTED_SCHEMA_OBJECT_KEYS = [
+  "properties",
+  "patternProperties",
+  "definitions",
+  "$defs",
+  "dependentSchemas",
+] as const;
+
+const NESTED_SCHEMA_ARRAY_KEYS = [
+  "oneOf",
+  "anyOf",
+  "allOf",
+  "prefixItems",
+] as const;
+
+function stripUnsupportedFormatsInPlace(
+  node: unknown,
+  allowed: ReadonlySet<string>
+): void {
+  if (Array.isArray(node)) {
+    for (const item of node) stripUnsupportedFormatsInPlace(item, allowed);
+    return;
+  }
+  if (node === null || typeof node !== "object") return;
+  const obj = node as JsonSchemaLike;
+
+  // 1. Direct `format` on this node — drop if not allowlisted.
+  if (typeof obj.format === "string" && !allowed.has(obj.format)) {
+    delete obj.format;
+  }
+
+  // 2. Single-schema slots (e.g. `items: <schema>` or `not: <schema>`).
+  //    `items` can also legally be an array in older drafts — handled
+  //    transparently by the recursive call.
+  for (const key of NESTED_SCHEMA_KEYS) {
+    if (key in obj) stripUnsupportedFormatsInPlace(obj[key], allowed);
+  }
+
+  // 3. Map-of-schemas slots (`properties`, `$defs`, …).
+  for (const key of NESTED_SCHEMA_OBJECT_KEYS) {
+    const value = obj[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      for (const child of Object.values(value as JsonSchemaLike)) {
+        stripUnsupportedFormatsInPlace(child, allowed);
+      }
+    }
+  }
+
+  // 4. Array-of-schemas slots (`oneOf`, `anyOf`, `allOf`, `prefixItems`).
+  for (const key of NESTED_SCHEMA_ARRAY_KEYS) {
+    const value = obj[key];
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        stripUnsupportedFormatsInPlace(child, allowed);
+      }
+    }
+  }
+}
+
+/**
+ * Build the sanitized JSON Schema we hand to `generateObject`. Pulled
+ * out so tests and the `--dry-run` schema check can run the exact same
+ * code path the generator uses.
+ */
+export function buildSanitizedResourceJsonSchema(): JsonSchemaLike {
+  const raw = zodToJsonSchema(
+    resourcePublishSchema as unknown as z.ZodTypeAny,
+    { $refStrategy: "none" }
+  );
+  return sanitizeJsonSchemaForProviders(raw) as JsonSchemaLike;
+}
+
 // ── Generator ─────────────────────────────────────────────────────
 
 /**
@@ -313,6 +462,16 @@ export async function generateResourcePayload(
   let lastIssues: z.ZodIssue[] = [];
   let lastDraft: unknown = null;
 
+  // Build the sanitized JSON Schema once per call. We pass it to the
+  // AI SDK instead of the raw Zod schema so OpenAI's strict structured-
+  // output validator (which rejects `format: "uri"` and other formats
+  // outside its allowlist) accepts the request. The original Zod schema
+  // still runs in `safeParse` below so URL fields, word counts, banned
+  // superlatives, etc. continue to be enforced post-generation.
+  const generationSchema = jsonSchema(
+    buildSanitizedResourceJsonSchema() as Parameters<typeof jsonSchema>[0]
+  );
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const userPrompt =
       attempt === 0
@@ -327,19 +486,20 @@ ${JSON.stringify(lastDraft, null, 2)}
 Validation issues (each must be resolved):
 ${formatIssues(lastIssues)}`;
 
-    // We accept generateObject's loose schema typing and validate strictly
-    // ourselves with `resourcePublishSchema` below — the SDK's Zod adapter
-    // doesn't run `superRefine` callbacks.
+    // We pass a sanitized JSON Schema (built once, above) to the SDK so
+    // OpenAI's structured-output validator accepts the request. We
+    // re-validate the output strictly against `resourcePublishSchema`
+    // below — the SDK's adapters don't run our `superRefine` callbacks
+    // and the sanitization step removed the `format: "uri"` URL hints
+    // the schema relies on for early rejection of bad URLs. Strict
+    // re-validation closes both gaps in one pass.
     let result;
     try {
       result = await generateObject({
         model: opts.model,
         system,
         prompt: userPrompt,
-        // Pass the schema to the SDK — it constrains JSON output but
-        // doesn't enforce our custom refinements.
-        schema:
-          resourcePublishSchema as unknown as z.ZodType<ResourcePublishPayload>,
+        schema: generationSchema,
       });
     } catch (err) {
       // The SDK throws NoObjectGeneratedError when the model fails to

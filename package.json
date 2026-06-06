@@ -110,7 +110,8 @@
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.67",
     "ai": "^6.0.196",
-    "linkedom": "^0.18.0"
+    "linkedom": "^0.18.0",
+    "zod-to-json-schema": "^3.25.2"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",
