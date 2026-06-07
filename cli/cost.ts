@@ -24,25 +24,39 @@ type Rate = {
 };
 
 // Per-model rates. Keys are lowercased model id prefixes. We pick the
-// longest prefix that matches a given model so caller can pass either
-// "gpt-4o" or "gpt-4o-2024-08-06".
+// longest prefix that matches a given model so callers can pass either
+// "gpt-5.4" or "gpt-5.4-2026-03-05".
+//
+// v0.6.2 — cost tables narrowed to the latest three generations from
+// each provider (per project policy: no gpt-4o* or claude-3-5-* in
+// defaults or rate tables). Users who pin an older model via `--model`
+// fall through to DEFAULT_RATES for the estimate; their actual bill
+// is unaffected — the estimate is advisory.
 const OPENAI_RATES: Record<string, Rate> = {
-  "gpt-4o-mini": { input: 0.15, output: 0.6 },
-  "gpt-4o": { input: 2.5, output: 10 },
-  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
-  "gpt-4.1": { input: 2, output: 8 },
-  "o4-mini": { input: 1.1, output: 4.4 },
+  // gpt-5.5 (April 2026) — newest full-tier model.
+  "gpt-5.5": { input: 5, output: 20 },
+  // gpt-5.4 (March 2026) — current default. The full/mini/nano triple
+  // covers the same span gpt-4o family did at lower cost and with
+  // materially better instruction-following on tight schemas (the
+  // reason mini/4o fell over on resourcePublishSchema in v0.6.x).
+  "gpt-5.4-nano": { input: 0.1, output: 0.4 },
+  "gpt-5.4-mini": { input: 0.5, output: 2 },
+  "gpt-5.4": { input: 2.5, output: 10 },
+  // gpt-5.2 (December 2025) — kept so longest-prefix lookup answers
+  // for users who pin it explicitly.
+  "gpt-5.2": { input: 2, output: 8 },
 };
 
 const ANTHROPIC_RATES: Record<string, Rate> = {
-  "claude-haiku": { input: 0.8, output: 4 },
-  "claude-3-5-haiku": { input: 0.8, output: 4 },
+  // Latest of each tier from the claude-4-* family.
+  "claude-haiku-4-5": { input: 1, output: 5 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-opus-4-8": { input: 15, output: 75 },
+  // Generic family prefixes — catches any point releases the provider
+  // ships before this table is updated (e.g. claude-sonnet-4-7).
+  "claude-haiku": { input: 1, output: 5 },
   "claude-sonnet": { input: 3, output: 15 },
-  "claude-3-5-sonnet": { input: 3, output: 15 },
-  "claude-3-7-sonnet": { input: 3, output: 15 },
-  "claude-sonnet-4": { input: 3, output: 15 },
   "claude-opus": { input: 15, output: 75 },
-  "claude-opus-4": { input: 15, output: 75 },
 };
 
 // Conservative defaults when the model id doesn't match any prefix.
@@ -55,8 +69,8 @@ const DEFAULT_RATES: Record<ProviderId, Rate> = {
 export function lookupRate(provider: ProviderId, modelName: string): Rate {
   const table = provider === "openai" ? OPENAI_RATES : ANTHROPIC_RATES;
   const id = modelName.toLowerCase();
-  // Longest matching prefix wins so "gpt-4o-2024-08-06" matches "gpt-4o"
-  // and not "gpt-4o-mini" by accident.
+  // Longest matching prefix wins so "gpt-5.4-2026-03-05" matches
+  // "gpt-5.4" and not "gpt-5.4-mini" by accident.
   let best: { prefix: string; rate: Rate } | null = null;
   for (const [prefix, rate] of Object.entries(table)) {
     if (id.startsWith(prefix)) {

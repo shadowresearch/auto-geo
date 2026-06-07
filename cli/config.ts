@@ -169,10 +169,12 @@ export function userPassedFlag(argv: string[], ...flags: string[]): boolean {
  * key is set, or undefined if none are. Used as the env-tier fallback
  * for `--provider` resolution.
  *
- * If both keys are set, prefers `openai` because gpt-4o-mini is cheaper
- * and faster than claude-sonnet-4-6 for the `write` / `fix` workloads
- * this matters for. Users with a strong preference should set
- * `provider` in their config file.
+ * If both keys are set, prefers `openai` because gpt-5.4 is materially
+ * faster than claude-sonnet-4-6 for the `write` / `fix` workloads this
+ * matters for (~5-10× wall time per page). Both providers reliably
+ * pass `resourcePublishSchema` at their current default models — see
+ * cli/cost.ts for the in-policy model list. Users with a strong
+ * preference should set `provider` in their config file.
  */
 export function detectProviderFromEnv(
   env: NodeJS.ProcessEnv = process.env

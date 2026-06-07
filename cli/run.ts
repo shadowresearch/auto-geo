@@ -332,14 +332,15 @@ export function parseFixArgs(argv: string[]): FixArgs {
     command: "fix",
     out: "./fixed.json",
     provider: "openai",
-    // v0.6.1: bumped from "gpt-4o-mini" to "gpt-4o". Mini cannot hold
-    // the soft-content windows in `resourcePublishSchema` (40-60 word
-    // TL;DR / capsules / FAQ answers, 10-35 word takeaways, 4-8
-    // related guides, 3-10 FAQ items) — it systematically under-writes
-    // and the self-correction loop can't recover. gpt-4o follows the
-    // windows reliably. Cost goes ~10x per page (still <$0.10) but
-    // correctness goes from ~0% to ~100% on default invocations.
-    model: "gpt-4o",
+    // v0.6.2: bumped to gpt-5.4 (March 2026). gpt-4o (v0.6.1 default)
+    // and gpt-4o-mini (v0.6.0 and earlier) both under-write the
+    // soft-content windows in resourcePublishSchema (40-60 word TL;DR
+    // / capsules / FAQ answers, 10-35 word takeaways) and the
+    // self-correction loop can't recover. Project policy keeps the
+    // default within the latest three model generations per provider.
+    // Override with `--model gpt-5.4-mini` (or set `model` in config)
+    // to opt into a cheaper tier; the cost table covers it.
+    model: "gpt-5.4",
     // v0.6.1: bumped from 2 → 3. Cheap insurance combined with the
     // new actionable retry coaching (formatIssues below).
     maxRetries: 3,
@@ -402,13 +403,14 @@ export function parseFixArgs(argv: string[]): FixArgs {
 
 // ── write subcommand ──────────────────────────────────────────────
 
-// v0.6.1: openai default model bumped from "gpt-4o-mini" to "gpt-4o".
-// Mini cannot hold the soft-content windows in `resourcePublishSchema`
-// (40-60 word TL;DR / capsules / FAQ answers, 10-35 word takeaways)
-// and the self-correction loop can't recover from systematic
-// under-writing. gpt-4o is the smallest model that reliably passes.
+// v0.6.2: defaults brought current — openai bumped from "gpt-4o" to
+// "gpt-5.4" (March 2026). Project policy is to keep defaults within
+// the latest three model generations per provider. Anthropic default
+// stays on claude-sonnet-4-6 (already current; user-confirmed reliable
+// for resourcePublishSchema's tight word windows). See cli/cost.ts
+// for the full list of in-policy models and their pricing.
 const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderId, string> = {
-  openai: "gpt-4o",
+  openai: "gpt-5.4",
   anthropic: "claude-sonnet-4-6",
 };
 

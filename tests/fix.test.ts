@@ -49,7 +49,7 @@ function makeFlags(overrides: Partial<FixCliFlags> = {}): FixCliFlags {
     url: "https://example.com/blog-post",
     out: "./fixed.json",
     provider: "openai",
-    model: "gpt-4o-mini",
+    model: "gpt-5.4-mini",
     maxRetries: 2,
     dryRun: false,
     json: false,
@@ -190,7 +190,7 @@ describe("runFix — orchestration", () => {
     expect(generate).toHaveBeenCalledTimes(1);
     const call = generate.mock.calls[0]![0] as Parameters<typeof generate>[0];
     expect(call.provider).toBe("openai");
-    expect(call.model).toBe("gpt-4o-mini");
+    expect(call.model).toBe("gpt-5.4-mini");
     expect(call.apiKey).toBe("sk-test");
     expect(call.sourceUrl).toBe("https://example.com/blog-post");
     expect(call.doctorReport).toContain("FAIL");
@@ -384,7 +384,7 @@ describe("renderFixHuman / renderFixJson", () => {
 describe("estimateGenerationCostUsd", () => {
   it("returns a positive estimate for known models", () => {
     expect(
-      estimateGenerationCostUsd({ model: "gpt-4o-mini", inputChars: 8_000 })
+      estimateGenerationCostUsd({ model: "gpt-5.4-mini", inputChars: 8_000 })
     ).toBeGreaterThan(0);
   });
 
@@ -415,7 +415,7 @@ describe("parseArgs — fix subcommand", () => {
       "--provider",
       "anthropic",
       "--model",
-      "claude-sonnet-4-5",
+      "claude-sonnet-4-6",
       "--max-retries",
       "3",
       "--dry-run",
@@ -434,7 +434,7 @@ describe("parseArgs — fix subcommand", () => {
     expect(parsed.command).toBe("fix");
     expect(parsed.out).toBe("/tmp/x.json");
     expect(parsed.provider).toBe("anthropic");
-    expect(parsed.model).toBe("claude-sonnet-4-5");
+    expect(parsed.model).toBe("claude-sonnet-4-6");
     expect(parsed.maxRetries).toBe(3);
     expect(parsed.dryRun).toBe(true);
     expect(parsed.json).toBe(true);

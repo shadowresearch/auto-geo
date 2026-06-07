@@ -8,6 +8,23 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-06-07
+
+### Changed
+
+- **Default OpenAI model bumped to `gpt-5.4` (March 2026).** v0.6.1 had moved to `gpt-4o`, which still under-wrote `resourcePublishSchema`'s soft-content windows (40-60 word TL;DR / capsules / FAQ answers, 10-35 word takeaways) — same failure mode as `gpt-4o-mini`, just with smaller deltas. gpt-5.4 is materially better at instruction-following on tight schemas. Project policy going forward: defaults stay within the **latest three model generations per provider**; no `gpt-4o*` or `claude-3-5-*` references in defaults, cost tables, or help text.
+- **Cost tables narrowed to the in-policy model set.**
+  - OpenAI: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.2` (per-1M-token rates in `cli/cost.ts`; per-1k-token rates in `cli/llm.ts`).
+  - Anthropic: `claude-opus-4-8`, `claude-sonnet-4-6` (unchanged default), `claude-haiku-4-5`. Family-prefix fallbacks (`claude-haiku`, `claude-sonnet`, `claude-opus`) catch future point releases the table hasn't seen yet.
+  Users pinning an older model via `--model` still work — the cost estimate falls through to the provider-default rate. Their actual bill is unaffected (the estimate is advisory).
+- **Help text** updated to reflect new defaults across `write --help` and `fix --help`.
+
+### Notes
+
+- Pricing in the cost tables is current to the best of the maintainer's knowledge as of release; treat as advisory and verify against your provider's billing dashboard for accounting.
+- No new dependencies. No API surface changes — every existing flag still works.
+- The two failures observed against v0.6.1 (TL;DR 32 vs 40-60, key takeaways 8-9 vs 10-35) are model-size-bound and resolved by the new default.
+
 ## [0.6.1] — 2026-06-06
 
 ### Changed
