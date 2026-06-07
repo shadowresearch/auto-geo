@@ -43,6 +43,22 @@ import {
 } from "./help";
 import type { LlmProvider, ProviderId } from "./llm";
 import type { ResourceAuthor } from "../core/schema";
+import {
+  CONFIG_FLAG_ALIASES,
+  ConfigError,
+  detectProviderFromEnv,
+  loadConfig,
+  resolveField,
+  userPassedFlag,
+  type AutoGeoConfig,
+} from "./config";
+import {
+  parseInitArgs,
+  renderInitJson,
+  renderInitOutcome,
+  runInit,
+  type InitArgs,
+} from "./init";
 
 /**
  * Argument parser + top-level `run` for the `auto-geo` CLI. Lives in
@@ -186,12 +202,19 @@ export type ParsedArgs =
   | FixArgs
   | WriteArgs
   | CheckArgs
+  | InitArgs
   | HelpArgs
   | VersionArgs;
 
 // ── Dispatcher ────────────────────────────────────────────────────
 
-const SUBCOMMANDS = new Set<CommandName>(["doctor", "fix", "write", "check"]);
+const SUBCOMMANDS = new Set<CommandName>([
+  "doctor",
+  "fix",
+  "write",
+  "check",
+  "init",
+]);
 
 function isSubcommand(s: string | undefined): s is CommandName {
   return !!s && SUBCOMMANDS.has(s as CommandName);
@@ -248,6 +271,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (first === "fix") return parseFixArgs(argv.slice(1));
   if (first === "check") return parseCheckArgs(argv.slice(1));
   if (first === "doctor") return parseDoctorArgs(argv.slice(1));
+  if (first === "init") return parseInitArgs(argv.slice(1));
   // Bare `<url>` dispatches to doctor for v0.1.3 back-compat.
   return parseDoctorArgs(argv);
 }
@@ -581,14 +605,211 @@ export async function run(argv: string[]): Promise<number> {
     console.log(await renderVersion());
     return 0;
   }
-  if (parsed.command === "doctor") return runDoctorCommand(parsed);
-  if (parsed.command === "fix") return runFixCommand(parsed);
-  if (parsed.command === "write") return runWriteCommand(parsed);
-  if (parsed.command === "check") return runCheckCommand(parsed);
+
+  // `init` runs BEFORE config loading — it creates the file that
+  // loadConfig would read, so loading first would be circular and
+  // would surface schema errors from a half-written config.
+  if (parsed.command === "init") return runInitCommand(parsed);
+
+  // Load config once for the lifetime of this invocation. Errors
+  // (malformed JSON, schema violation) surface as exit 2 — config
+  // problems should be loud, not silently dropped.
+  let config: AutoGeoConfig | null = null;
+  try {
+    const loaded = await loadConfig();
+    if (loaded) config = loaded.config;
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error(`auto-geo: ${err.message}`);
+      return 2;
+    }
+    throw err;
+  }
+
+  if (parsed.command === "doctor") {
+    mergeConfigIntoDoctorArgs(parsed, argv, config);
+    return runDoctorCommand(parsed);
+  }
+  if (parsed.command === "fix") {
+    mergeConfigIntoFixArgs(parsed, argv, config);
+    return runFixCommand(parsed);
+  }
+  if (parsed.command === "write") {
+    mergeConfigIntoWriteArgs(parsed, argv, config);
+    return runWriteCommand(parsed);
+  }
+  if (parsed.command === "check") {
+    mergeConfigIntoCheckArgs(parsed, argv, config);
+    return runCheckCommand(parsed);
+  }
 
   // Exhaustive check.
   console.error(renderGlobalHelp({ colors: false }));
   return 2;
+}
+
+// ── Config merge (CLI > env > config > parser default) ────────────
+
+/**
+ * Merge config-file values into parsed args for fields the user did
+ * NOT pass on the CLI. Mutates the input in place — the parser already
+ * filled in its built-in defaults; this layer overrides those defaults
+ * when (a) the user didn't pass the flag AND (b) config has a value.
+ *
+ * Per-command — separate functions because the field sets differ.
+ */
+function mergeConfigIntoDoctorArgs(
+  args: DoctorArgs,
+  argv: string[],
+  config: AutoGeoConfig | null
+): void {
+  if (config?.concurrency !== undefined && args.concurrency === undefined) {
+    if (!userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.concurrency)) {
+      args.concurrency = config.concurrency;
+    }
+  }
+}
+
+function mergeConfigIntoFixArgs(
+  args: FixArgs,
+  argv: string[],
+  config: AutoGeoConfig | null
+): void {
+  args.provider = resolveField({
+    cliPassed: userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.provider),
+    parserValue: args.provider,
+    envValue: detectProviderFromEnv(),
+    configValue: config?.provider,
+  });
+  if (!userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.model) && config?.model) {
+    args.model = config.model;
+  }
+  if (
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.basePath) &&
+    config?.basePath
+  ) {
+    args.basePath = config.basePath;
+  }
+  // Author fields — CLI > config. The author resolver in the write
+  // runner (resolveAuthor) handles env-less defaults from DEFAULT_AUTHOR.
+  if (
+    args.authorName === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorName) &&
+    config?.author?.name
+  ) {
+    args.authorName = config.author.name;
+  }
+  if (
+    args.authorJobTitle === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorJobTitle) &&
+    config?.author?.jobTitle
+  ) {
+    args.authorJobTitle = config.author.jobTitle;
+  }
+  if (
+    args.authorBio === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorBio) &&
+    config?.author?.bio
+  ) {
+    args.authorBio = config.author.bio;
+  }
+  if (
+    args.authorLinkedin === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorLinkedin) &&
+    config?.author?.linkedinUrl
+  ) {
+    args.authorLinkedin = config.author.linkedinUrl;
+  }
+}
+
+function mergeConfigIntoWriteArgs(
+  args: WriteArgs,
+  argv: string[],
+  config: AutoGeoConfig | null
+): void {
+  if (args.domain === undefined && config?.domain) {
+    args.domain = config.domain;
+  }
+  args.provider = resolveField({
+    cliPassed: userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.provider),
+    parserValue: args.provider,
+    envValue: detectProviderFromEnv(),
+    configValue: config?.provider,
+  });
+  if (
+    args.model === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.model) &&
+    config?.model
+  ) {
+    args.model = config.model;
+  }
+  if (
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.basePath) &&
+    config?.basePath
+  ) {
+    args.basePath = config.basePath;
+  }
+  if (
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.concurrency) &&
+    config?.concurrency !== undefined
+  ) {
+    args.concurrency = config.concurrency;
+  }
+  if (
+    args.authorName === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorName) &&
+    config?.author?.name
+  ) {
+    args.authorName = config.author.name;
+  }
+  if (
+    args.authorJobTitle === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorJobTitle) &&
+    config?.author?.jobTitle
+  ) {
+    args.authorJobTitle = config.author.jobTitle;
+  }
+  if (
+    args.authorBio === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorBio) &&
+    config?.author?.bio
+  ) {
+    args.authorBio = config.author.bio;
+  }
+  if (
+    args.authorLinkedin === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.authorLinkedin) &&
+    config?.author?.linkedinUrl
+  ) {
+    args.authorLinkedin = config.author.linkedinUrl;
+  }
+}
+
+function mergeConfigIntoCheckArgs(
+  args: CheckArgs,
+  argv: string[],
+  config: AutoGeoConfig | null
+): void {
+  if (args.domain === undefined && config?.domain) {
+    args.domain = config.domain;
+  }
+  if (!userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.engine) && config?.engine) {
+    args.engine = config.engine;
+  }
+  if (
+    args.model === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.model) &&
+    config?.model
+  ) {
+    args.model = config.model;
+  }
+  if (
+    args.concurrency === undefined &&
+    !userPassedFlag(argv, ...CONFIG_FLAG_ALIASES.concurrency) &&
+    config?.concurrency !== undefined
+  ) {
+    args.concurrency = config.concurrency;
+  }
 }
 
 // ── doctor runner ─────────────────────────────────────────────────
@@ -1302,4 +1523,34 @@ function formatYmd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+// ── init runner ───────────────────────────────────────────────────
+
+async function runInitCommand(parsed: InitArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+  try {
+    const outcome = await runInit({ yes: parsed.yes, force: parsed.force });
+    if (parsed.json) {
+      console.log(renderInitJson(outcome));
+    } else {
+      console.log(renderInitOutcome(outcome, { colors }));
+    }
+    return outcome.refusedExisting ? 1 : 0;
+  } catch (err) {
+    if (parsed.json) {
+      console.log(
+        JSON.stringify(
+          { error: err instanceof Error ? err.message : String(err) },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(
+        `auto-geo init: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    return 1;
+  }
 }

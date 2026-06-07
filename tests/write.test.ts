@@ -434,6 +434,45 @@ describe("runWrite — generates and writes files", () => {
     expect(written.slug).toBe("geo");
   });
 
+  it("passes per-provider escape hatches via providerOptions (v0.6.0)", async () => {
+    // openai: strictJsonSchema=false avoids the v0.5.2 "required must
+    //   include every key in properties" rejection for our schema's
+    //   optional fields (e.g. author.linkedinUrl).
+    // anthropic: structuredOutputMode='jsonTool' bypasses the
+    //   "compiled grammar is too large" limit on newer Claude models
+    //   when the schema is large.
+    const dir = mkdtempSync(path.join(tmpdir(), "auto-geo-write-popts-"));
+    mockGenerateObject.mockImplementation(async () => ({
+      object: makeValidPayload(),
+      usage: { inputTokens: 100, outputTokens: 100, totalTokens: 200 },
+    }));
+
+    await runWrite({
+      domain: "https://example.com",
+      queries: ["what is GEO"],
+      outDir: dir,
+      provider: "openai",
+      modelName: "gpt-4o-mini",
+      model: {} as never,
+      basePath: "/resources",
+      author: AUTHOR,
+      publishedAt: "2026-06-02",
+      maxRetries: 0,
+    });
+
+    expect(mockGenerateObject).toHaveBeenCalledTimes(1);
+    const callArg = mockGenerateObject.mock.calls[0]?.[0] as {
+      providerOptions?: Record<string, Record<string, unknown>>;
+    };
+    expect(callArg.providerOptions).toBeDefined();
+    expect(callArg.providerOptions?.openai).toEqual({
+      strictJsonSchema: false,
+    });
+    expect(callArg.providerOptions?.anthropic).toEqual({
+      structuredOutputMode: "jsonTool",
+    });
+  });
+
   it("retries when the first draft fails schema validation", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "auto-geo-write-retry-"));
     const bad = makeValidPayload({ tldr: { text: "too short" } });

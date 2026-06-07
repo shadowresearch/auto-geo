@@ -43,12 +43,17 @@ export const NPM_URL = "https://www.npmjs.com/package/auto-geo";
 export const SHADOW_URL = "https://www.shadow.inc";
 export const GLOBAL_TAGLINE = "publishing engine for GEO resource pages";
 
-export type CommandName = "doctor" | "fix" | "write" | "check";
+export type CommandName = "init" | "doctor" | "fix" | "write" | "check";
 
+// Ordering matters — renderGlobalHelp iterates this object's keys to
+// render the "Commands:" block, and we want users to read it in
+// workflow order: set up once with `init`, then audit (`doctor`),
+// generate (`write`), improve (`fix`), and measure (`check`).
 const COMMAND_SUMMARIES: Record<CommandName, string> = {
+  init: "Scaffold auto-geo.config.json + .env.local for first-run setup",
   doctor: "Audit a page for citation readiness",
-  fix: "Rewrite a page so it passes the doctor checks",
   write: "Generate publish-ready resource pages from target queries",
+  fix: "Rewrite a page so it passes the doctor checks",
   check:
     "Measure if AI engines (Perplexity / OpenAI / Claude / Gemini / Grok) cite your domain",
 };
@@ -98,6 +103,50 @@ export type CommandHelp = {
 // ── Help content (the single source of truth for every renderer) ───
 
 export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
+  init: {
+    command: "init",
+    tagline: "scaffold auto-geo.config.json + .env.local for first-run setup",
+    usage: ["auto-geo init [options]"],
+    sections: [
+      {
+        heading: "Options",
+        items: [
+          {
+            flag: "-y, --yes",
+            description:
+              "Non-interactive — write a template config without prompting",
+          },
+          {
+            flag: "--force",
+            description: "Overwrite an existing auto-geo.config.json",
+          },
+          {
+            flag: "--json",
+            description: "Emit a machine-readable outcome",
+          },
+          {
+            flag: "--no-color",
+            description: "Disable ANSI colors",
+          },
+        ],
+      },
+    ],
+    examples: [
+      {
+        comment: "Interactive setup — answer a handful of questions",
+        lines: ["auto-geo init"],
+      },
+      {
+        comment: "Non-interactive — drop a template file you'll edit by hand",
+        lines: ["auto-geo init --yes"],
+      },
+    ],
+    note: "Never overwrites an existing .env.local. API keys NEVER live in the config file — they stay in .env.local (gitignored).",
+    exitCode:
+      "Exit code: 0 on success, 1 if the config already exists (use --force).",
+    docsUrl:
+      "https://github.com/shadowresearch/auto-geo/blob/main/docs/init.md",
+  },
   doctor: {
     command: "doctor",
     tagline: "audit a page for citation readiness",
@@ -771,14 +820,28 @@ export function renderGlobalHelp(opts: HelpRenderOptions): string {
     for (const ln of rendered) lines.push(ln);
   }
   lines.push("");
+  // Four-pillar workflow hint — the CLI as the foundational pillar of
+  // GEO infra. `init` is the on-ramp; the four pillars are run in
+  // order. New in v0.6.0.
+  lines.push(
+    `${id}${bold("First run?", ui.colors)}  auto-geo init  ${dim(
+      "(then doctor \u2192 write \u2192 fix \u2192 check)",
+      ui.colors
+    )}`
+  );
+  lines.push("");
   lines.push(
     `${id}${dim("Run a command with --help to see its flags:", ui.colors)}`
   );
+  lines.push(`${id}  auto-geo init --help`);
   lines.push(`${id}  auto-geo doctor --help`);
-  lines.push(`${id}  auto-geo check --help`);
   lines.push("");
-  // Trailer links — kv-style, aligned by colon.
+  // Trailer links — kv-style, aligned by colon. `Library` points users
+  // who want the programmatic API (adapters, schema, store) at the
+  // deeper-integration section of the README; the CLI is the primary
+  // surface, the library is a deeper-cut second.
   const links: Array<[string, string]> = [
+    ["Library", `${REPO_URL}#library-usage`],
     ["Docs", REPO_URL],
     ["npm", NPM_URL],
     ["By", `Shadow (${SHADOW_URL})`],

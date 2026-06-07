@@ -78,25 +78,50 @@ describe("renderGlobalHelp", () => {
     expect(out).toContain("v9.9.9");
   });
 
-  it("lists every subcommand with its one-line summary", () => {
+  it("lists every subcommand with its one-line summary (including init)", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
-    const cmds: CommandName[] = ["doctor", "fix", "write", "check"];
+    const cmds: CommandName[] = ["init", "doctor", "write", "fix", "check"];
     for (const c of cmds) expect(out).toContain(c);
     // Spot-check summaries (no flag-blob).
+    expect(out).toContain("Scaffold auto-geo.config.json");
     expect(out).toContain("Audit a page for citation readiness");
     expect(out).toContain("Rewrite a page so it passes the doctor checks");
     expect(out).toContain("Generate publish-ready resource pages");
     expect(out).toContain("Measure if AI engines");
   });
 
-  it("points users at `auto-geo <cmd> --help`", () => {
+  it("orders commands in workflow order: init, doctor, write, fix, check", () => {
+    const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
+    const order = ["init", "doctor", "write", "fix", "check"];
+    let lastIdx = -1;
+    for (const cmd of order) {
+      const idx = out.indexOf(`  ${cmd}`);
+      expect(idx, `expected ${cmd} after position ${lastIdx}`).toBeGreaterThan(
+        lastIdx
+      );
+      lastIdx = idx;
+    }
+  });
+
+  it("includes a 'First run?' workflow hint pointing at init (v0.6.0)", () => {
+    const out = renderGlobalHelp({ ...PLAIN, version: "0.6.0" });
+    expect(out).toContain("First run?");
+    expect(out).toContain("auto-geo init");
+    // Mentions the workflow ordering somewhere.
+    expect(out).toMatch(/doctor\s*[→-]+\s*write\s*[→-]+\s*fix\s*[→-]+\s*check/);
+  });
+
+  it("points users at `auto-geo <cmd> --help`, leading with init", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
     expect(out).toContain("--help");
+    expect(out).toContain("auto-geo init --help");
     expect(out).toContain("auto-geo doctor --help");
   });
 
-  it("includes Docs / npm / Shadow attribution links", () => {
+  it("includes Library / Docs / npm / Shadow attribution links", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
+    expect(out).toContain("Library");
+    expect(out).toContain("library-usage");
     expect(out).toContain("github.com/shadowresearch/auto-geo");
     expect(out).toContain("npmjs.com/package/auto-geo");
     expect(out).toContain("Shadow");

@@ -8,6 +8,39 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-06
+
+### Added
+
+- **`auto-geo init` — first-run scaffolding.** Two modes:
+  - Interactive (default): a small `readline` prompt sequence asks for publisher domain, base path, provider, and author block.
+  - `--yes` / `-y`: non-interactive — drops a template `auto-geo.config.json` you edit by hand. Good for CI / scripted onboarding.
+  Always scaffolds `.env.local` next to the config with empty key slots for every supported provider/engine. **Never overwrites an existing `.env.local`** — keys are precious. Refuses to overwrite an existing `auto-geo.config.json` without `--force`.
+
+- **`auto-geo.config.json` — project-level config file.** Set domain / basePath / provider / model / engine / concurrency / author once and they're applied to every command. Precedence (highest to lowest): CLI flag > env var > config file > built-in default. `loadConfig` walks up from cwd so monorepo subdirs inherit the workspace config. **API keys never live in this file** — they stay in env (`.env.local`).
+
+- **Provider auto-detect from env** for `write` / `fix`. If you don't pass `--provider`, the CLI uses whichever of `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` is set. When both are set, prefers `openai` (cheaper/faster gpt-4o-mini); override with `--provider anthropic` or `provider: "anthropic"` in your config.
+
+- **Refreshed top-level help.** `auto-geo --help` now lists commands in workflow order — `init`, `doctor`, `write`, `fix`, `check` — and gains a "First run? auto-geo init (then doctor → write → fix → check)" hint line under the command list. A new `Library:` link in the trailer points users who want the programmatic API (adapters, schema, store) at the README's library-usage section. The CLI is positioned as the primary surface; the library is the deeper-integration cut.
+
+### Fixed
+
+- **`auto-geo write` / `fix` now work end-to-end against OpenAI and Anthropic.** v0.5.2 emitted a complete JSON Schema for the first time (zod 4's native converter), which exposed the next layer of provider strictness — both surfaced pre-flight schema-validation rejections that blocked every `write` / `fix` call:
+  - OpenAI strict mode required `required` to include every key in `properties`; our schema's optional fields (`author.linkedinUrl`, etc.) made it reject with `In context=('properties', 'author'), 'required' is required to be supplied and to be an array including every key in properties`.
+  - Anthropic's newer compiled-grammar structured-output mode has a complexity ceiling that the full `resourcePublishSchema` exceeded: `The compiled grammar is too large, which would cause performance issues`.
+  Fixed by passing per-provider escape hatches through `generateObject({ providerOptions })`:
+  - `openai: { strictJsonSchema: false }` — disables strict-mode pre-flight validation. We rely on Zod's `safeParse` against the real `resourcePublishSchema` + the existing self-correction retry loop to catch shape drift.
+  - `anthropic: { structuredOutputMode: "jsonTool" }` — uses the older tool-call JSON path, which has no compiled-grammar size limit.
+
+### Test coverage
+
+- 488 → 523 tests (+35): config loader (17), `init` command (15), refreshed help (3).
+
+### Notes
+
+- Peer-dep range unchanged (`zod ^3.23.0 || ^4.0.0`). The CLI bundles its own zod for schema conversion.
+- No new runtime dependencies. `init` uses Node's built-in `readline/promises`.
+
 ## [0.5.2] — 2026-06-05
 
 ### Fixed
