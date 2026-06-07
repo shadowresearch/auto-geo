@@ -136,10 +136,12 @@ describe("detectProviderFromEnv", () => {
 describe("userPassedFlag", () => {
   it("returns true when any alias is present in argv", () => {
     expect(userPassedFlag(["--domain", "x"], "--domain")).toBe(true);
-    expect(userPassedFlag(["--basepath", "/r"], "--basepath", "--base-path"))
-      .toBe(true);
-    expect(userPassedFlag(["--base-path", "/r"], "--basepath", "--base-path"))
-      .toBe(true);
+    expect(
+      userPassedFlag(["--basepath", "/r"], "--basepath", "--base-path")
+    ).toBe(true);
+    expect(
+      userPassedFlag(["--base-path", "/r"], "--basepath", "--base-path")
+    ).toBe(true);
   });
 
   it("returns false when no alias is present", () => {
@@ -182,8 +184,8 @@ describe("resolveField", () => {
   });
 
   it("returns parser default when nothing else is set", () => {
-    expect(
-      resolveField({ cliPassed: false, parserValue: "default" })
-    ).toBe("default");
+    expect(resolveField({ cliPassed: false, parserValue: "default" })).toBe(
+      "default"
+    );
   });
 });

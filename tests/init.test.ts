@@ -14,10 +14,7 @@ import {
   renderInitOutcome,
   runInit,
 } from "../cli/init";
-import {
-  autoGeoConfigSchema,
-  CONFIG_FILE_NAME,
-} from "../cli/config";
+import { autoGeoConfigSchema, CONFIG_FILE_NAME } from "../cli/config";
 
 /**
  * Tests for `auto-geo init` (v0.6.0).

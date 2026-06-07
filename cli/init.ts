@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -167,14 +166,15 @@ async function runInteractivePrompts(
   if (domain) config.domain = domain;
 
   const basePath =
-    (
-      await prompt(`Base path for resources [${DEFAULT_BASE_PATH}]: `)
-    ).trim() || DEFAULT_BASE_PATH;
+    (await prompt(`Base path for resources [${DEFAULT_BASE_PATH}]: `)).trim() ||
+    DEFAULT_BASE_PATH;
   config.basePath = basePath;
 
   const provider =
     (
-      await prompt(`Default LLM provider (openai | anthropic) [${DEFAULT_PROVIDER}]: `)
+      await prompt(
+        `Default LLM provider (openai | anthropic) [${DEFAULT_PROVIDER}]: `
+      )
     ).trim() || DEFAULT_PROVIDER;
   if (provider === "openai" || provider === "anthropic") {
     config.provider = provider;
@@ -186,7 +186,9 @@ async function runInteractivePrompts(
     await prompt("Default author — bio (≥20 characters): ")
   ).trim();
   const authorLinkedin = (
-    await prompt("Default author — LinkedIn URL (optional, press Enter to skip): ")
+    await prompt(
+      "Default author — LinkedIn URL (optional, press Enter to skip): "
+    )
   ).trim();
 
   const author: NonNullable<AutoGeoConfig["author"]> = {};
@@ -253,10 +255,7 @@ export function renderInitOutcome(
   }
 
   lines.push(
-    green(
-      `${g.ok} wrote ${CONFIG_FILE_NAME} (${outcome.configPath})`,
-      colors
-    )
+    green(`${g.ok} wrote ${CONFIG_FILE_NAME} (${outcome.configPath})`, colors)
   );
   if (outcome.envWritten) {
     lines.push(
