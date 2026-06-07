@@ -73,7 +73,7 @@ export type GenerateResourceOptions = {
   slug: string;
   /** Today's date in yyyy-mm-dd; used for `publishedAt`. */
   publishedAt: string;
-  /** Maximum re-prompt attempts on validation failure. Default 2. */
+  /** Maximum re-prompt attempts on validation failure. Default 3 (v0.6.1). */
   maxRetries?: number;
   /** Optional system-prompt override — exported mainly for tests + docs. */
   systemPrompt?: string;
@@ -448,7 +448,10 @@ export async function generateResourcePayload(
   opts: GenerateResourceOptions
 ): Promise<GenerateResourceResult> {
   const startedAt = Date.now();
-  const maxRetries = opts.maxRetries ?? 2;
+  // v0.6.1: default fallback bumped from 2 to 3. Aligns with the CLI
+  // parser defaults; library consumers calling generateResourcePayload
+  // directly without opts.maxRetries also benefit.
+  const maxRetries = opts.maxRetries ?? 3;
   const system = opts.systemPrompt ?? SYSTEM_PROMPT;
   const baseUserPrompt = buildUserPrompt({
     domain: opts.domain,
@@ -601,14 +604,83 @@ export class SchemaValidationError extends Error {
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+/**
+ * Format Zod issues for the self-correction retry prompt.
+ *
+ * v0.6.1: each line now ends with an actionable rewrite instruction
+ * derived from the validation message itself ("expand by 9-29 words",
+ * "add 1-5 items", "trim by 7-12 chars") instead of relying on the
+ * model to compute the deltas from a `got K` / `expected N-M` echo.
+ *
+ * The coaching is parsed out of the message body — `resourcePublishSchema`
+ * uses a stable set of phrasings:
+ *   - "must be N-M words; got K"
+ *   - "must have between N and M entries; got K"
+ *   - "must be N-M characters; got K"
+ *
+ * Anything that doesn't match a known phrasing falls through to the
+ * raw message. Models that don't need coaching (claude-sonnet-4-6 et al)
+ * are unaffected; under-writing models (gpt-4o-mini and friends) get
+ * the explicit delta they need.
+ */
 export function formatIssues(issues: z.ZodIssue[]): string {
   if (issues.length === 0) return "(no issues)";
   return issues
     .map((iss, i) => {
       const path = iss.path.length === 0 ? "<root>" : iss.path.join(".");
-      return `${i + 1}. [${path}] ${iss.message}`;
+      const coaching = deriveCoaching(iss.message);
+      const tail = coaching ? `\n     → ${coaching}` : "";
+      return `${i + 1}. [${path}] ${iss.message}${tail}`;
     })
     .join("\n");
+}
+
+/**
+ * Turn a validation message into a one-line rewrite instruction.
+ * Returns `null` if we can't extract a structured constraint —
+ * caller falls back to the raw message.
+ *
+ * Exported for testing.
+ */
+export function deriveCoaching(message: string): string | null {
+  // "must be N-M words; got K"  →  expand / trim by delta
+  const wordRange = message.match(/must be (\d+)-(\d+) words.*?got (\d+)/i);
+  if (wordRange) {
+    const [, minS, maxS, gotS] = wordRange;
+    const min = Number(minS),
+      max = Number(maxS),
+      got = Number(gotS);
+    if (got < min) return `expand by ${min - got}-${max - got} words`;
+    if (got > max) return `trim by ${got - max}-${got - min} words`;
+  }
+
+  // "must have between N and M entries; got K"  →  add / remove items
+  const itemRange = message.match(
+    /must have between (\d+) and (\d+) (?:entries|items).*?got (\d+)/i
+  );
+  if (itemRange) {
+    const [, minS, maxS, gotS] = itemRange;
+    const min = Number(minS),
+      max = Number(maxS),
+      got = Number(gotS);
+    if (got < min) return `add ${min - got}-${max - got} entries`;
+    if (got > max) return `remove ${got - max}-${got - min} entries`;
+  }
+
+  // "must be N-M characters; got K"  →  expand / trim by chars
+  const charRange = message.match(
+    /must be (\d+)-(\d+) characters?.*?got (\d+)/i
+  );
+  if (charRange) {
+    const [, minS, maxS, gotS] = charRange;
+    const min = Number(minS),
+      max = Number(maxS),
+      got = Number(gotS);
+    if (got < min) return `expand by ${min - got}-${max - got} characters`;
+    if (got > max) return `trim by ${got - max}-${got - min} characters`;
+  }
+
+  return null;
 }
 
 function stripTrailingSlash(s: string): string {
