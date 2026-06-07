@@ -620,8 +620,8 @@ export class SchemaValidationError extends Error {
  *
  * Anything that doesn't match a known phrasing falls through to the
  * raw message. Models that don't need coaching (claude-sonnet-4-6 et al)
- * are unaffected; under-writing models (gpt-4o-mini and friends) get
- * the explicit delta they need.
+ * are unaffected; weaker / older models still in use via `--model`
+ * get the explicit delta they need.
  */
 export function formatIssues(issues: z.ZodIssue[]): string {
   if (issues.length === 0) return "(no issues)";
@@ -706,16 +706,17 @@ const FIX_COST_TABLE: Record<
   string,
   { inputPer1k: number; outputPer1k: number }
 > = {
-  "gpt-4o-mini": { inputPer1k: 0.00015, outputPer1k: 0.0006 },
-  "gpt-4o": { inputPer1k: 0.0025, outputPer1k: 0.01 },
-  "gpt-4.1-mini": { inputPer1k: 0.0004, outputPer1k: 0.0016 },
-  "gpt-4.1": { inputPer1k: 0.002, outputPer1k: 0.008 },
-  "claude-3-5-haiku-latest": { inputPer1k: 0.0008, outputPer1k: 0.004 },
-  "claude-3-5-sonnet-latest": { inputPer1k: 0.003, outputPer1k: 0.015 },
+  // v0.6.2 — restricted to the latest three generations from each
+  // provider. Rates are USD per 1k tokens. The canonical write-side
+  // table lives in cli/cost.ts (per 1M tokens); keep both in sync.
+  "gpt-5.5": { inputPer1k: 0.005, outputPer1k: 0.02 },
+  "gpt-5.4": { inputPer1k: 0.0025, outputPer1k: 0.01 },
+  "gpt-5.4-mini": { inputPer1k: 0.0005, outputPer1k: 0.002 },
+  "gpt-5.4-nano": { inputPer1k: 0.0001, outputPer1k: 0.0004 },
+  "gpt-5.2": { inputPer1k: 0.002, outputPer1k: 0.008 },
   "claude-haiku-4-5": { inputPer1k: 0.001, outputPer1k: 0.005 },
-  "claude-sonnet-4-5": { inputPer1k: 0.003, outputPer1k: 0.015 },
   "claude-sonnet-4-6": { inputPer1k: 0.003, outputPer1k: 0.015 },
-  "claude-opus-4-5": { inputPer1k: 0.015, outputPer1k: 0.075 },
+  "claude-opus-4-8": { inputPer1k: 0.015, outputPer1k: 0.075 },
 };
 
 const FIX_DEFAULT_COST = { inputPer1k: 0.001, outputPer1k: 0.005 };

@@ -124,7 +124,7 @@ describe("toGeoAuditRow", () => {
   it("maps openai → chatgpt at the row level (provider name mapping)", () => {
     const row = toGeoAuditRow(makeResult(), {
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-5.4-mini",
     });
     expect(row.provider).toBe("chatgpt");
   });
@@ -162,7 +162,7 @@ describe("toGeoAuditRow", () => {
         fanOutQueries: [],
         // no usage at all
       },
-      { provider: "openai", model: "gpt-4o-mini" }
+      { provider: "openai", model: "gpt-5.4-mini" }
     );
     expect(row.responseText).toBe("");
     expect(row.fanOutQueries).toEqual([]);
@@ -203,7 +203,7 @@ describe("toGeoAuditRow", () => {
 
 describe("makeNdjsonGeoAuditLine", () => {
   it("returns the same shape as toGeoAuditRow (thin alias)", () => {
-    const meta = { provider: "openai", model: "gpt-4o-mini" };
+    const meta = { provider: "openai", model: "gpt-5.4-mini" };
     const a = toGeoAuditRow(makeResult(), meta);
     const b = makeNdjsonGeoAuditLine(makeResult(), meta);
     // Ignore datetime — independent now() calls.
@@ -281,7 +281,7 @@ describe("toGeoAuditOutputMulti", () => {
     });
     const openaiReport = makeReport({
       engine: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-5.4-mini",
       results: [
         makeResult({ query: "q1", error: "rate limited", cited: false }),
       ],

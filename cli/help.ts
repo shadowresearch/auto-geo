@@ -236,7 +236,8 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
           },
           {
             flag: "--model <name>",
-            description: "Model name (default gpt-4o-mini)",
+            description:
+              "Model name (default gpt-5.4 for openai, claude-sonnet-4-6 for anthropic)",
           },
           {
             flag: "--max-retries N",
@@ -349,11 +350,11 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
           {
             flag: "--model <name>",
             description:
-              "Model (default gpt-4o-mini for openai, claude-sonnet-4-6 for anthropic)",
+              "Model (default gpt-5.4 for openai, claude-sonnet-4-6 for anthropic)",
           },
           {
             flag: "--max-retries N",
-            description: "Schema-validation retries (default 2)",
+            description: "Schema-validation retries (default 3)",
           },
           {
             flag: "--concurrency N",

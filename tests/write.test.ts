@@ -205,8 +205,12 @@ describe("deriveUniqueSlugs", () => {
 
 describe("cost lookup + estimation", () => {
   it("matches the longest-prefix model row", () => {
-    expect(lookupRate("openai", "gpt-4o-2024-08-06").input).toBe(2.5);
-    expect(lookupRate("openai", "gpt-4o-mini-foo").input).toBe(0.15);
+    // v0.6.2: cost table updated to the latest 3 generations per
+    // provider. "gpt-5.4-2026-03-05" should match "gpt-5.4" (NOT
+    // "gpt-5.4-mini" / "gpt-5.4-nano" / "gpt-5.2").
+    expect(lookupRate("openai", "gpt-5.4-2026-03-05").input).toBe(2.5);
+    expect(lookupRate("openai", "gpt-5.4-mini-foo").input).toBe(0.5);
+    expect(lookupRate("openai", "gpt-5.4-nano-bar").input).toBe(0.1);
     expect(lookupRate("anthropic", "claude-sonnet-4-6").input).toBe(3);
   });
 
@@ -216,12 +220,12 @@ describe("cost lookup + estimation", () => {
   });
 
   it("estimateCost is the linear combination of rates", () => {
-    const cost = estimateCost("openai", "gpt-4o-mini", {
+    const cost = estimateCost("openai", "gpt-5.4-mini", {
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
       totalTokens: 2_000_000,
     });
-    expect(cost).toBeCloseTo(0.15 + 0.6, 4);
+    expect(cost).toBeCloseTo(0.5 + 2, 4);
   });
 
   it("sumUsage aggregates token counts", () => {
@@ -243,7 +247,7 @@ describe("cost lookup + estimation", () => {
   });
 
   it("estimateCostPerPage returns a small positive number", () => {
-    const c = estimateCostPerPage("openai", "gpt-4o-mini");
+    const c = estimateCostPerPage("openai", "gpt-5.4-mini");
     expect(c).toBeGreaterThan(0);
     expect(c).toBeLessThan(0.1);
   });
@@ -285,7 +289,7 @@ describe("LLM prompts", () => {
   // v0.6.1 — retry coaching. The model often "sees" the validation
   // message on retry but doesn't follow through with the right delta.
   // formatIssues now appends an actionable rewrite instruction parsed
-  // from the message body so under-writing models (gpt-4o-mini etc.)
+  // from the message body so under-writing models (weaker / older)
   // get explicit "expand by N words" / "add N items" hints.
   describe("formatIssues — v0.6.1 retry coaching", () => {
     it("expands a too-short word range with the explicit delta", () => {
@@ -452,7 +456,7 @@ describe("runWrite — dry-run", () => {
       queries: ["what is GEO", "GEO vs SEO"],
       outDir: dir,
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       basePath: "/resources",
       author: AUTHOR,
       publishedAt: "2026-06-02",
@@ -474,7 +478,7 @@ describe("runWrite — dry-run", () => {
         queries: ["x"],
         outDir: tmpdir(),
         provider: "openai",
-        modelName: "gpt-4o-mini",
+        modelName: "gpt-5.4-mini",
         basePath: "/resources",
         author: AUTHOR,
         publishedAt: "2026-06-02",
@@ -500,7 +504,7 @@ describe("runWrite — generates and writes files", () => {
       queries: ["what is GEO", "GEO vs SEO"],
       outDir: dir,
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       model: {} as never, // mocked SDK ignores the model
       basePath: "/resources",
       author: AUTHOR,
@@ -543,7 +547,7 @@ describe("runWrite — generates and writes files", () => {
       queries: ["what is GEO"],
       outDir: dir,
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       model: {} as never,
       basePath: "/resources",
       author: AUTHOR,
@@ -583,7 +587,7 @@ describe("runWrite — generates and writes files", () => {
       queries: ["what is GEO"],
       outDir: dir,
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       model: {} as never,
       basePath: "/resources",
       author: AUTHOR,
@@ -610,7 +614,7 @@ describe("runWrite — generates and writes files", () => {
       queries: ["bad query"],
       outDir: dir,
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       model: {} as never,
       basePath: "/resources",
       author: AUTHOR,
@@ -635,7 +639,7 @@ describe("renderWriteSummary + renderWriteJson", () => {
     return {
       domain: "https://example.com",
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       outDir: "/tmp/out",
       dryRun: false,
       outcomes: [],
@@ -665,7 +669,7 @@ describe("renderWriteSummary + renderWriteJson", () => {
     });
     const out = renderWriteSummary(s);
     expect(out).toContain("https://example.com");
-    expect(out).toContain("openai (gpt-4o-mini)");
+    expect(out).toContain("openai (gpt-5.4-mini)");
     expect(out).toContain('"what is GEO"');
     expect(out).toContain("12.0s elapsed");
   });
@@ -810,7 +814,7 @@ describe("GenerateResourceOptions shape", () => {
   it("compiles with the expected required fields", () => {
     const opts: Omit<GenerateResourceOptions, "model"> = {
       provider: "openai",
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-5.4-mini",
       domain: "https://example.com",
       basePath: "/resources",
       query: "what is GEO",

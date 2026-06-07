@@ -41,7 +41,7 @@ describe("loadConfig", () => {
         domain: "https://www.example.com",
         basePath: "/resources",
         provider: "openai",
-        model: "gpt-4o-mini",
+        model: "gpt-5.4-mini",
         engine: "all",
         concurrency: 8,
         author: {
