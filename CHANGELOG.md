@@ -8,6 +8,26 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-06-06
+
+### Changed
+
+- **Default OpenAI model bumped from `gpt-4o-mini` → `gpt-4o`.** Mini cannot hold the soft-content windows in `resourcePublishSchema` (40-60 word TL;DR / answer capsules / FAQ answers, 10-35 word key takeaways) and the self-correction retry loop can't recover from systematic under-writing. After v0.6.0 unblocked the schema-validation pre-flight, mini-driven `write` calls would consistently fail with messages like `TL;DR must be 40-60 words; got 31`, `Section answer capsule must be 40-60 words; got 33` after exhausting all retries. gpt-4o follows the windows reliably. Cost goes ~10× per page (from ~$0.01 → ~$0.10) but correctness goes from ~0% to ~100% on default invocations. Override with `--model gpt-4o-mini` to opt back in.
+- **Default `maxRetries` bumped from 2 → 3** for both `write` and `fix` (and the `cli/llm.ts` library fallback). Cheap insurance — combined with the new actionable retry coaching below, most retries now actually fix the issue rather than echoing it.
+
+### Added
+
+- **Actionable retry coaching in self-correction prompts.** When `generateResourcePayload` retries on validation failure, each issue line now ends with a concrete rewrite instruction parsed from the validation message — `expand by 9-29 words`, `trim by 18-38 words`, `add 2-6 entries`. Earlier versions echoed the raw Zod message and trusted the model to compute the delta; under-writing models (gpt-4o-mini, gpt-3.5-class) repeatedly missed by the same margin on retry. Coaching covers word ranges (live now), with character-range and item-range patterns wired up for future schema messages that include a `; got K` suffix.
+
+### Test coverage
+
+- 523 → 530 tests (+7): coaching transformer for too-short / too-long word ranges, character ranges, item ranges, fall-through to raw message when no constraint can be parsed, no-op when `got` is inside the range.
+
+### Notes
+
+- No new dependencies. The fix is two integer bumps + one regex.
+- If you were pinning `--model gpt-4o-mini` to keep costs low, the dollar floor for a single page is now closer to $0.10 than $0.01. For high-volume runs, consider switching to Anthropic (`--provider anthropic`) which holds the windows on the smaller `claude-haiku-4-5` model too.
+
 ## [0.6.0] — 2026-06-06
 
 ### Added

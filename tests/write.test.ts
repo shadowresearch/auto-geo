@@ -281,6 +281,96 @@ describe("LLM prompts", () => {
     expect(out).toContain("1. [tldr.text] too short");
     expect(out).toContain("2. [<root>] root issue");
   });
+
+  // v0.6.1 — retry coaching. The model often "sees" the validation
+  // message on retry but doesn't follow through with the right delta.
+  // formatIssues now appends an actionable rewrite instruction parsed
+  // from the message body so under-writing models (gpt-4o-mini etc.)
+  // get explicit "expand by N words" / "add N items" hints.
+  describe("formatIssues — v0.6.1 retry coaching", () => {
+    it("expands a too-short word range with the explicit delta", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["tldr", "text"],
+          message: "TL;DR must be 40-60 words; got 31.",
+        } as never,
+      ]);
+      expect(out).toContain("expand by 9-29 words");
+    });
+
+    it("trims a too-long word range with the explicit delta", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["faq", "items", "0", "answer"],
+          message: "FAQ answer must be 40-60 words; got 78.",
+        } as never,
+      ]);
+      expect(out).toContain("trim by 18-38 words");
+    });
+
+    it("adds entries to a too-short collection", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["relatedGuides", "items"],
+          message:
+            "relatedGuides.items must have between 4 and 8 entries; got 2.",
+        } as never,
+      ]);
+      expect(out).toContain("add 2-6 entries");
+    });
+
+    it("removes entries from a too-long collection", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["keyTakeaways", "items"],
+          message:
+            "keyTakeaways.items must have between 4 and 6 entries; got 9.",
+        } as never,
+      ]);
+      expect(out).toContain("remove 3-5 entries");
+    });
+
+    it("coaches character ranges (metaDescription, excerpt, bio)", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["metaDescription"],
+          message: "metaDescription must be 50-180 characters; got 32.",
+        } as never,
+      ]);
+      expect(out).toContain("expand by 18-148 characters");
+    });
+
+    it("falls back to the raw message when no constraint can be parsed", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["slug"],
+          message: "Invalid slug format (must match a-z0-9-).",
+        } as never,
+      ]);
+      // No "→" coaching arrow — only the raw message line.
+      expect(out).toContain("Invalid slug format");
+      expect(out).not.toContain("expand by");
+      expect(out).not.toContain("trim by");
+    });
+
+    it("does not coach when got is inside the range (defensive — schema would not have surfaced this)", () => {
+      const out = formatIssues([
+        {
+          code: "custom",
+          path: ["tldr", "text"],
+          message: "must be 40-60 words; got 50.",
+        } as never,
+      ]);
+      expect(out).not.toContain("expand by");
+      expect(out).not.toContain("trim by");
+    });
+  });
 });
 
 // ── parseWriteArgs ─────────────────────────────────────────────────
@@ -299,7 +389,8 @@ describe("parseWriteArgs", () => {
     expect(args.out).toBe("./out");
     expect(args.provider).toBe("openai");
     expect(args.basePath).toBe("/resources");
-    expect(args.maxRetries).toBe(2);
+    // v0.6.1: default bumped 2 → 3.
+    expect(args.maxRetries).toBe(3);
   });
 
   it("accepts multiple --query values", () => {
