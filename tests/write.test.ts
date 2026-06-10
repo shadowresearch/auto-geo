@@ -25,8 +25,8 @@ import {
   runWrite,
   type WriteSummary,
 } from "../cli/write";
-import type { ResourceAuthor, ResourcePublishPayload } from "../core/schema";
-import { resourcePublishSchema } from "../core/schema";
+import type { ResourceAuthor, ResourcePublishPayload } from "../cli/schema";
+import { resourcePublishSchema } from "../cli/schema";
 
 // ── Mock the AI SDK ────────────────────────────────────────────────
 

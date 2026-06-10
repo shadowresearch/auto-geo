@@ -2,7 +2,7 @@
 
 The standard operating procedure for generative engine optimization resource pages.
 
-This document is the substantive spec behind `auto-geo`'s schema and validation heuristics. Every word-count constraint in `core/schema.ts` and every soft-warning threshold in `core/validation.ts` traces back to a section here. Read this document before deviating from any rule the code enforces.
+This document is the substantive spec behind `auto-geo`'s schema and validation heuristics. Every word-count constraint in `cli/schema.ts` and every soft-warning threshold in `cli/checks.ts` traces back to a section here. Read this document before deviating from any rule the code enforces.
 
 The SOP is calibrated to the public retrieval and citation behavior of major AI search engines (ChatGPT, Perplexity, Google AI Overviews, Google AI Mode, Claude, Gemini, Copilot) as of early 2026. Specific numerical thresholds (e.g., citation lift percentages, density ratios) are heuristic — they reflect the working consensus from internal experimentation and external GEO research. Treat them as starting points, not laws.
 
@@ -24,7 +24,7 @@ A GEO resource page typically serves one or more of:
 - **GEO** (Generative Engine Optimization) — Optimizes for inclusion in synthesized responses (Google AI Overviews, AI Mode).
 - **LLMO** (Large Language Model Optimization) — Optimizes for inclusion in the underlying training and retrieval corpora of LLMs themselves.
 
-A page can serve all three. `core/schema.ts`'s `geoMetadata.optimizationFramework` field records which.
+A page can serve all three. `cli/schema.ts`'s `geoMetadata.optimizationFramework` field records which.
 
 ---
 
@@ -37,7 +37,7 @@ H2 headings are written as the questions a user would type into an AI engine, no
 
 Rationale: AI engines retrieve against query intent. A page whose H2s mirror prompt phrasing is matched directly. A page whose H2s are internal labels requires the engine to synthesize a connection — synthesis costs the engine; direct matches are cheap.
 
-`core/validation.ts` flags H2s that don't contain `?` or are outside 4-12 words.
+`cli/checks.ts` flags H2s that don't contain `?` or are outside 4-12 words.
 
 ---
 
@@ -59,7 +59,7 @@ Five page types, each with calibrated word-count and density targets:
 - **Category**: An overview-style page that organizes a topic and links out to deeper pages. Drives entity-graph coverage.
 - **Listicle**: "Top N X." High extractability; AI engines often quote individual list items verbatim.
 
-`geoMetadata.pageType` selects the expectation set. `core/validation.ts` surfaces soft warnings when page totals are outside the range.
+`geoMetadata.pageType` selects the expectation set. `cli/checks.ts` surfaces soft warnings when page totals are outside the range.
 
 ---
 
@@ -110,7 +110,7 @@ The FAQ block drives `FAQPage` Schema.org markup, which is extracted by retrieva
 
 The empirical link: entity-dense pages show ~4.8x higher citation probability than entity-sparse pages of similar length. Entity density is a credibility signal — pages that name specific actors are treated as more authoritative than pages that gesture at abstractions.
 
-`core/validation.ts` runs a simple heuristic (joined capitalized words after stripping inline markers and sentence-starters) and flags pages below 15.
+`cli/checks.ts` runs a simple heuristic (joined capitalized words after stripping inline markers and sentence-starters) and flags pages below 15.
 
 ### §5h. Banned promotional superlatives
 
@@ -118,7 +118,7 @@ The following phrases carry a measured citation penalty (~26%) when used without
 
 - "industry-leading", "best-in-class", "revolutionary", "game-changing", "cutting-edge", "world-class", "world's leading", "the leading", "the premier", "next-generation", "first-of-its-kind", "one of a kind"
 
-`core/schema.ts` rejects these as **hard errors** unless:
+`cli/schema.ts` rejects these as **hard errors** unless:
 
 - The phrase appears inside straight double-quotes (quoted passage).
 - The phrase is followed within ~80 characters by an attribution marker: `(per ...)`, `(Source: ...)`, `[Named Source]`, or `by [Named Source]`.
@@ -152,7 +152,7 @@ Rules:
 - Must answer the section heading without requiring context from elsewhere on the page.
 - No anaphora ("the above," "this," "we discussed").
 - One main claim per capsule.
-- 40-60 words, hard-enforced by `core/schema.ts`.
+- 40-60 words, hard-enforced by `cli/schema.ts`.
 
 The answer capsule is the highest-value chunk on the page. It is the most likely thing to be quoted verbatim by an AI engine. Every other block on the page exists to support the capsule.
 
@@ -188,7 +188,7 @@ Before publishing, articulate what makes this page non-redundant. If the answer 
 
 ## §13. Schema.org markup
 
-Auto-emitted by `core/jsonld.ts` from the typed payload. The agent never writes JSON-LD by hand. Five schema types are derived:
+Derived mechanically from the typed payload by the host renderer — the agent never writes JSON-LD by hand. Five schema types map directly from structured fields:
 
 - **Article** — page metadata, author, publisher, dates, citations
 - **BreadcrumbList** — Home → Resources → page title
@@ -232,6 +232,6 @@ Two cadences:
 
 ## Maintenance
 
-This SOP is versioned with `auto-geo`. When the empirical thresholds in `core/validation.ts` change, update the corresponding section here. The intent is that this document and the code stay in lockstep — reading the SOP should always tell you what the code is doing and why.
+This SOP is versioned with `auto-geo`. When the empirical thresholds in `cli/checks.ts` change, update the corresponding section here. The intent is that this document and the code stay in lockstep — reading the SOP should always tell you what the code is doing and why.
 
 External GEO research is rapidly evolving. Treat specific numerical claims (e.g., "4.8x citation lift") as snapshots, not eternal truths.

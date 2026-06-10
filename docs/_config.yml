@@ -31,7 +31,6 @@ author:
 # Resource URLs surfaced in every page's <head>.
 llms_txt: /auto-geo/llms.txt
 llms_full_txt: /auto-geo/llms-full.txt
-openapi_url: /auto-geo/openapi.yaml
 npm_url: https://www.npmjs.com/package/auto-geo
 repo_url: https://github.com/shadowresearch/auto-geo
 

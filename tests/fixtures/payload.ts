@@ -1,8 +1,8 @@
-import type { ResourcePublishPayload } from "../../core/schema";
+import type { ResourcePublishPayload } from "../../cli/schema";
 
 /**
  * Canonical valid payload used across the test suite. Every constraint
- * in `core/schema.ts` is satisfied; soft warnings from `core/validation.ts`
+ * in `cli/schema.ts` is satisfied; remaining soft-quality heuristics
  * may or may not fire (they're not the schema's concern). Tests that
  * exercise specific rejection paths produce a variant by spreading this
  * fixture and overriding the offending field.
@@ -70,7 +70,7 @@ export const VALID_PAYLOAD: ResourcePublishPayload = {
       heading: "What does the validation step actually check?",
       // 50 words
       answerCapsule:
-        "The validation step runs the incoming JSON body through the Zod schema in core/schema.ts which enforces structural blocks, prose word counts, banned promotional phrases, raw HTML rejection, and URL validity; failures return HTTP 400 with a path-and-message issue array the caller can act on programmatically without parsing prose.",
+        "The validation step runs the incoming JSON body through the auto-geo resource Zod schema which enforces structural blocks, prose word counts, banned promotional phrases, raw HTML rejection, and URL validity; failures return HTTP 400 with a path-and-message issue array the caller can act on programmatically without parsing prose.",
       blocks: [
         {
           type: "paragraph",

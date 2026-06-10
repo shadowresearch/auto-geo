@@ -13,7 +13,7 @@ npx auto-geo write \
   --model gpt-4o
 ```
 
-Each query produces one JSON file in `<out>/<slug>.json`, validated against the canonical [`resourcePublishSchema`](../core/schema.ts). Files are ready to POST to your `auto-geo` publish endpoint or commit to your content store.
+Each query produces one JSON file in `<out>/<slug>.json`, validated against the canonical [`resourcePublishSchema`](../cli/schema.ts). Files are ready to publish through your own pipeline — CMS import, static-site build, or custom renderer.
 
 ## Why this exists
 

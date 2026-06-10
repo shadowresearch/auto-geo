@@ -1,7 +1,5 @@
 # Page architecture
 
-> The HTTP contract that enforces this architecture is described in machine-readable form at [`openapi.yaml`](../openapi.yaml) — drop it into Postman, Insomnia, or a ChatGPT Custom GPT Action to call the publish endpoint against your own deployment.
-
 A GEO resource page is composed of seven blocks, in fixed order:
 
 1. **TL;DR** — 40-60 word answer capsule
@@ -17,7 +15,7 @@ The host renderer also auto-injects:
 - **Metadata line** — "Last updated · By [author]" above the TL;DR.
 - **About the Author** — derived from `author.bio`, between FAQ and disclosure.
 
-Every block is validated at the publish boundary. Omissions return 400 with a Zod issue list.
+Every block is validated against the resource schema. When `auto-geo write` or `auto-geo fix` generates a payload that violates a constraint, the payload is rejected with a Zod issue list and regenerated via the bounded self-correction loop.
 
 ## The seven blocks
 

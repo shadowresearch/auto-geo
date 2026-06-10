@@ -118,9 +118,9 @@ Concurrency is bounded to 5 by default — polite to origins and keeps memory bo
 
 ## Heuristic alignment with publish-time validation
 
-The `namedEntityCount` heuristic powering the entity-density check is **ported verbatim** from `core/validation.ts` so that an audit against an `auto-geo`-published page returns the same entity count the publish pipeline computed. Keep them in lockstep when one changes — both functions reference SOP §5g.
+The `namedEntityCount` heuristic powering the entity-density check references SOP §5g — a simple joined-capitalized-words count after stripping inline markers and sentence-starters.
 
-The other heuristics translate the typed-payload audits in `core/validation.ts` to HTML-as-input equivalents: where `auditResource` inspects `payload.sections[].heading`, the CLI inspects extracted H2 text; where it inspects `payload.relatedGuides.items[].url`, the CLI inspects anchors in a heading-bounded "related" container.
+The heuristics operate on HTML as input: H2 text is extracted and tested for question format and length, and related-guide self-links are detected from anchors in a heading-bounded "related" container.
 
 ## Programmatic use
 

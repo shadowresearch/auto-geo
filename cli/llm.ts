@@ -5,7 +5,7 @@ import {
   resourcePublishSchema,
   type ResourceAuthor,
   type ResourcePublishPayload,
-} from "../core/schema";
+} from "./schema";
 
 /**
  * Shared LLM helper for the `auto-geo write` CLI. Wraps the Vercel AI
@@ -119,7 +119,7 @@ export type GenerateResourceResult = {
 
 /**
  * The GEO SOP digest as a system prompt. Encodes the hard rules
- * enforced by `core/schema.ts` (word counts, count ranges, banned
+ * enforced by `cli/schema.ts` (word counts, count ranges, banned
  * superlatives, slug regex, no raw HTML) and the soft heuristics from
  * `core/validation.ts` + `cli/checks.ts` (question-format H2s, entity
  * density, image cadence, answer-first lede).

@@ -1,192 +1,71 @@
-# AGENT.md — auto-geo setup spec
+# AGENT.md — auto-geo operating spec
 
-You are integrating `auto-geo` into the user's repository. Follow these steps in order. Do not skip ahead, do not improvise.
+You are operating the `auto-geo` CLI on the user's behalf. `auto-geo` is the open-source GEO engine: it audits, generates, fixes, and tracks the pages AI search engines (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini) cite. This file is the canonical spec for driving it programmatically.
 
-`auto-geo` is a publishing engine for GEO resource pages — public web pages structured for citation by AI search engines (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini). It exposes a single authenticated HTTP endpoint that validates a typed payload against a strict structural schema, persists it through a pluggable storage adapter, and renders it via React components that emit Schema.org JSON-LD.
-
-This file is the canonical specification. Other files in this repo are reference implementations; this file says what to do with them.
-
----
-
-## 1. Detect the host stack
-
-Inspect the user's repository before copying any files. You must know which of the following the user has:
-
-- **`next.config.{js,ts,mjs}` present and `next` ≥ 14 in `package.json`** → Next.js App Router. Use `adapters/http/next.ts`.
-- **`hono` in `package.json`** → Hono. Use `adapters/http/hono.ts`.
-- **Other Node.js framework (Express, Fastify, Elysia, etc.)** → Use `adapters/http/hono.ts` as a template; adapt the request/response handling to the user's framework. The `core/publish.ts` function is framework-agnostic.
-- **No HTTP framework / no Node.js backend** → Scaffold a minimal Hono server in `app/server.ts` from `examples/hono-minimal/`. Ask the user before doing this.
-
-If the user has both Next.js and a separate API service, ask which one should host the publish endpoint. Default: Next.js if it exists, since the `/resources/[slug]` rendering route lives there too.
-
----
-
-## 2. Detect or choose storage
-
-`auto-geo` requires a key-value or relational store. Ask the user which they have or want:
-
-- **Vercel KV / Upstash Redis** → `adapters/storage/kv.ts`. Required env: `KV_REST_API_URL`, `KV_REST_API_TOKEN`. Best if the user is on Vercel or wants zero infrastructure.
-- **Supabase** → `adapters/storage/supabase.ts`. Requires running `adapters/storage/supabase.sql` in the user's Supabase SQL editor to create the table. Env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Best if the user wants a dashboard and SQL access.
-- **In-memory** → `adapters/storage/memory.ts`. Process-local only. Use for tests or demo apps. Never use in production.
-
-If the user is unsure, recommend KV — fewer moving parts.
-
----
-
-## 3. Install dependencies
+## 0. Invocation
 
 ```bash
-pnpm add zod
-# Plus the storage adapter you chose:
-pnpm add @vercel/kv          # if KV
-pnpm add @supabase/supabase-js  # if Supabase
-# Plus the HTTP adapter you chose:
-pnpm add hono                # if Hono
-# Next.js needs nothing extra.
-# For the React renderer:
-pnpm add react react-dom
+npx auto-geo@latest <command> [flags]   # or: npm i -g auto-geo && auto-geo <command>
 ```
 
-Do NOT add `auto-geo` from npm. This repo is intended to be copied into the user's source tree, not installed as a dependency. The agent (you) is responsible for the integration; npm versioning would couple it.
+Node `>=18.17`. Every command supports `--json` (single machine-readable object on stdout), `--no-color`, and writes progress to stderr — stdout is always parseable.
 
----
-
-## 4. Copy the core
-
-Copy the entire `core/` directory into the user's source tree at a stable location, conventionally `src/lib/auto-geo/`:
-
-```
-src/lib/auto-geo/
-├── schema.ts        ← from core/schema.ts
-├── store.ts         ← from core/store.ts
-├── publish.ts       ← from core/publish.ts
-├── validation.ts    ← from core/validation.ts
-├── jsonld.ts        ← from core/jsonld.ts
-└── index.ts         ← from core/index.ts
-```
-
-Do not modify field names, length constraints, or word-count rules in `schema.ts`. These are the SOP-aligned contract that AI agents will be writing against. If the user objects to a specific constraint, surface the trade-off (e.g., "TL;DR is 40–60 words because that's the length range that empirically maximizes citation extraction; loosening it weakens the GEO signal") rather than silently bending the schema.
-
----
-
-## 5. Wire the publish endpoint
-
-Copy the HTTP adapter you chose in step 1. For Next.js App Router:
-
-```
-src/app/api/resources/publish/route.ts  ← from adapters/http/next.ts
-```
-
-The endpoint must:
-
-1. Authenticate the request with `Bearer ${process.env.GEO_PUBLISH_TOKEN}`.
-2. Parse the JSON body and validate it against `resourcePublishSchema` from `core/schema.ts`.
-3. Audit the payload with `auditResource` from `core/validation.ts` (soft warnings).
-4. Persist via the storage adapter's `publish(payload)` method.
-5. Revalidate the index path and the slug path (Next.js: `revalidatePath('/resources')` and `revalidatePath(\`/resources/\${slug}\`)`).
-6. Return `{ success: true, slug, url, warnings }` on 200.
-
-`adapters/http/next.ts` does all six. Do not modify the validation order. Do not skip soft warnings — they are the agent feedback loop.
-
----
-
-## 6. Wire the render path
-
-Copy the React renderer:
-
-```
-src/components/auto-geo/  ← from components/react/
-```
-
-Create the slug-dynamic route:
-
-```
-src/app/resources/[slug]/page.tsx  ← from examples/next-minimal/app/resources/[slug]/page.tsx
-```
-
-The route must:
-
-1. Resolve the slug via the storage adapter's `get(slug)` method.
-2. 404 if not found.
-3. Generate `metadata` (title, description, canonical, OpenGraph, Twitter) from the stored payload.
-4. Render `<ResourceArticle payload={...} />` from `components/auto-geo`.
-5. Emit JSON-LD via `deriveAllJsonLd(payload, siteConfig)` from `core/jsonld.ts`, serialized with `safeJsonLd`.
-
-The `siteConfig` argument tells `auto-geo` the user's origin and publisher identity. Pass `{ origin: 'https://example.com', publisher: { name: 'Acme', url: 'https://example.com', logo: 'https://example.com/logo.png' } }`. Default `basePath` is `/resources`; override if the user wants pages under a different prefix.
-
----
-
-## 7. Wire the index
-
-```
-src/app/resources/page.tsx  ← from examples/next-minimal/app/resources/page.tsx
-```
-
-The index calls `store.list()` and renders one card per published resource. Group by `category` if the user has more than ~10 resources.
-
----
-
-## 8. Set environment variables
-
-Add to `.env.local`:
-
-```
-GEO_PUBLISH_TOKEN=<generate a long random string>
-# Storage:
-KV_REST_API_URL=...
-KV_REST_API_TOKEN=...
-# OR
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
-```
-
-Generate the publish token with `openssl rand -hex 32`. It will be required on every publish request as `Authorization: Bearer <token>`.
-
----
-
-## 9. (Optional) Set up the MCP server
-
-If the user wants to publish via an MCP-aware AI client (Claude Desktop, Claude Code, Cursor, etc.):
+## 1. Set up once
 
 ```bash
-# Copy mcp/ into the repo (or run it via npx in dev)
-pnpm add @modelcontextprotocol/sdk
+auto-geo init --yes
 ```
 
-Configure the MCP client to register the `auto-geo` server with two environment variables:
+Writes three things at the project root:
 
-- `AUTO_GEO_PUBLISH_URL` — e.g. `http://localhost:3000/api/resources/publish` in dev, or the deployed URL in prod.
-- `AUTO_GEO_PUBLISH_TOKEN` — the same token from step 8.
+- `auto-geo.config.json` — defaults (domain, basePath, provider, model, engine, concurrency, author). Edit this rather than re-passing flags. Committable; never holds secrets.
+- `.env.local` — empty API key slots (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`). Auto-loaded by every command; process env always wins. Must be gitignored.
+- `.auto-geo/` — the workspace: `prompts.txt` (tracked prompts) and `checks/` (saved check runs).
 
-The MCP server exposes one tool: `publish_resource`, with a Zod-typed input matching the resource publish schema. See `mcp/README.md` for the client configuration snippets (Claude Desktop config, Cursor mcp.json, etc.).
+Ask the user for at least one API key if none is set. Do not write keys into the config file. `init` exits 1 if the config already exists (`--force` to overwrite); it never overwrites `.env.local`.
 
----
+Config precedence everywhere: CLI flag > env var > config file > built-in default.
 
-## 10. Verify
+## 2. The loop
 
-Smoke-test before declaring done:
+| Command                                         | Question it answers                          | Exit codes                                               |
+| ----------------------------------------------- | -------------------------------------------- | -------------------------------------------------------- |
+| `auto-geo doctor <url>` (or `--site <sitemap>`) | Is this page shaped for citation?            | 0 if score ≥ 75%, 1 otherwise                            |
+| `auto-geo write --query "<q>"`                  | Generate a publish-ready page for this query | 0 ok, 1 any page failed                                  |
+| `auto-geo fix <url>`                            | Rewrite this page so it passes the audit     | 0 ok, 1 failure                                          |
+| `auto-geo prompts add/list/rm`                  | Manage the tracked prompt set                | 0 ok, 1 failure                                          |
+| `auto-geo check`                                | Do AI engines actually cite the domain?      | 0 if coverage > 0%, 1 if 0%, 2 if truncated/config error |
+| `auto-geo history`                              | How is coverage trending?                    | 0 ok                                                     |
 
-1. Start the user's dev server.
-2. Send a curl POST to `/api/resources/publish` with the payload from `examples/next-minimal/sample-payload.json` and a `Bearer <token>` header.
-3. Confirm the response is `{ success: true, slug, url, warnings }`.
-4. Navigate to `/resources/<slug>` in the browser. Confirm the page renders with the TL;DR, intro, sections, related guides, key takeaways, FAQ, about the author, and disclosure.
-5. View source on the rendered page. Confirm `<script type="application/ld+json">` tags are present for `@type: Article`, `@type: BreadcrumbList`, and `@type: FAQPage`.
+Recommended cadence for an agent maintaining a site's GEO posture:
 
-If any step fails, stop and report the failure to the user. Do not paper over the issue.
+1. `auto-geo prompts add "<query>"` for every query the user cares about.
+2. `auto-geo check --json` — establish the baseline (runs all tracked prompts; saved to `.auto-geo/checks/` automatically).
+3. For uncited prompts: `auto-geo write --query "<prompt>" --out ./resources` → publish the JSON through the user's own pipeline → `auto-geo doctor <published-url>` to verify ≥ 75%.
+4. Re-run `auto-geo check` after indexing has had time to catch up (days, not minutes).
+5. `auto-geo history --json` — report newly cited / lost prompts to the user.
 
----
+## 3. Generation details (write / fix)
 
-## 11. What NOT to do
+- Providers: `--provider openai` (default model `gpt-5.4`) or `--provider anthropic` (default `claude-sonnet-4-6`). Provider auto-detects from which API key is set.
+- Output is a JSON payload per query, validated against the strict GEO schema (seven blocks: TL;DR, intro, question-format H2 sections with 40–60-word answer capsules, related guides, key takeaways, FAQ, disclosure). A validation failure triggers a bounded self-correction retry loop (`--max-retries`, default 3).
+- `--dry-run` prints the plan + cost estimate with zero LLM calls — use it before spending.
+- Cost estimates are printed per page and per run.
 
-- Do not change the seven-block page architecture. The order (TL;DR → intro → sections → related guides → key takeaways → FAQ → about the author → disclosure) is load-bearing for AI citation extraction.
-- Do not loosen the word-count constraints. They are calibrated to the SOP.
-- Do not add a markdown parser. Inline syntax is `**bold**`, `*italic*`, `[label](url)` only. Anything else is by design rejected at the schema boundary.
-- Do not store the publish token in source. `.env.local` only; deployment provider's secret manager in production.
-- Do not silently fall back to in-memory storage in production. If the configured store is unreachable, fail loudly.
-- Do not skip the `auditResource` soft-warning pass. Even if you ignore the warnings, the response shape includes them — the calling agent needs them for the iteration loop.
+## 4. Measurement details (check / history)
 
----
+- Engines: `perplexity` (default), `openai`, `anthropic`, `gemini`, `xai` (alias `grok`), `all`. `--engine all` runs every engine with a key present and reports a union roll-up.
+- With no `--query` / `--queries-file`, `check` runs the tracked prompts from `.auto-geo/prompts.txt`.
+- Every run is auto-saved to `.auto-geo/checks/<timestamp>--<engine>.json` (`--no-save` to skip). `history` reads these; trends compare runs of the same engine selector only.
+- For streaming consumption use `--ndjson`: one JSON object per query as it resolves, then a `{"_summary": true, ...}` line.
+- `--format geo-audit` switches JSON row shape to Shadow's in-product `geoAudit` contract.
 
-## 12. Substantive references
+## 5. Rules
 
-If the user asks _why_ the architecture is what it is, point them at `docs/sop.md`. That document is the standard operating procedure for GEO resource pages — the empirical and theoretical basis for every constraint in `schema.ts` and every heuristic in `validation.ts`. Read it before deviating from any rule.
+- Never put API keys anywhere except `.env.local` / the environment.
+- Never edit files under `.auto-geo/checks/` — they are the historical record.
+- `.auto-geo/` and `auto-geo.config.json` should be committed; `.env.local` must not be.
+- Prefer editing `auto-geo.config.json` over repeating flags.
+- Respect exit codes in CI: `doctor` and `check` are deploy gates.
+
+Full docs: <https://github.com/shadowresearch/auto-geo> · per-command references under `docs/`.

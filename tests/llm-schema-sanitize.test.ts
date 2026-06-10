@@ -5,7 +5,7 @@ import {
   OPENAI_STRUCTURED_OUTPUT_STRING_FORMATS,
   sanitizeJsonSchemaForProviders,
 } from "../cli/llm";
-import { resourcePublishSchema } from "../core/schema";
+import { resourcePublishSchema } from "../cli/schema";
 
 /**
  * Tests for the v0.5.1 bug fix: `auto-geo write` + `auto-geo fix`

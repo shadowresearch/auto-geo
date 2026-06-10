@@ -2,9 +2,9 @@
   auto-geo — full LLM-ingestible bundle.
 
   This file concatenates README.md and the substantive docs (concept, SOP,
-  architecture, validation, storage adapters) with H1 boundaries between them
-  so a single fetch ingests the whole project. Source of truth is the linked
-  files; if this drifts, the originals win.
+  architecture, validation) with H1 boundaries between them so a single
+  fetch ingests the whole project. Source of truth is the linked files;
+  if this drifts, the originals win.
 -->
 
 # README
@@ -15,18 +15,26 @@
 [![npm version](https://img.shields.io/npm/v/auto-geo.svg)](https://www.npmjs.com/package/auto-geo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Built by Shadow](https://img.shields.io/badge/built%20by-Shadow-000000.svg)](https://www.shadow.inc)
-[![Bundle size](https://img.shields.io/bundlephobia/minzip/auto-geo)](https://bundlephobia.com/package/auto-geo)
 [![Downloads](https://img.shields.io/npm/dm/auto-geo)](https://www.npmjs.com/package/auto-geo)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/node/v/auto-geo)](https://nodejs.org/)
 [![Docs](https://img.shields.io/badge/docs-shadowresearch.github.io%2Fauto--geo-blue)](https://shadowresearch.github.io/auto-geo/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-available-9cf)](./llms.txt)
 
-**A publishing engine for GEO resource pages — the pages large language models cite.**
+**The open-source GEO engine — a CLI that audits, generates, fixes, and tracks the pages large language models cite.**
 
-`auto-geo` is a content publishing primitive built for the AI search era. Where traditional CMSs optimize for human readers, `auto-geo` optimizes for _citation by AI engines_ (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini). It enforces the structural and quality patterns that empirical research links to higher citation rates — TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid page architecture — at the publish boundary.
+When someone asks ChatGPT, Perplexity, Claude, Gemini, or Google AI Overviews a question your business should answer, do those engines cite *your* domain? `auto-geo` is the full loop for making that happen and proving it's happening:
 
-Hand the URL of this repo to your coding agent. It will set up a publishing endpoint in your existing app that any other agent can call as a tool. You can then schedule, automate, or wire it into your own workflow.
+```
+auto-geo init      # set up the system once
+auto-geo doctor    # audit any page for citation readiness
+auto-geo write     # generate publish-ready pages from target queries
+auto-geo fix       # rewrite an existing page so it passes the audit
+auto-geo check     # measure: do AI engines actually cite you?
+auto-geo history   # track citation coverage over time
+```
+
+Everything is file-based and committable — tracked prompts, check history, config. No server, no account, no database. One `npx` away.
 
 > Built by **[Shadow](https://www.shadow.inc)** — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map. Shadow uses `auto-geo` to publish to [shadow.inc/resources](https://www.shadow.inc/resources).
 
@@ -34,399 +42,368 @@ Hand the URL of this repo to your coding agent. It will set up a publishing endp
 
 ## Contents
 
-- [What is a GEO resource page?](#what-is-a-geo-resource-page)
-- [Why auto-geo](#why-auto-geo)
-- [Install](#install)
-- [60-second quickstart](#60-second-quickstart)
-- [What's in this repo](#whats-in-this-repo)
-- [Quickstart (production setup)](#quickstart-production-setup)
-- [Examples](#examples)
-- [The publishing flow](#the-publishing-flow)
-- [Hard rejects vs. soft warnings](#hard-rejects-vs-soft-warnings)
-- [How it compares](#how-it-compares)
-- [API](#api)
+- [Quickstart](#quickstart)
+- [What is GEO?](#what-is-geo)
+- [The workflow](#the-workflow)
+- [`auto-geo init` — set up the system](#auto-geo-init--set-up-the-system)
+- [`auto-geo doctor` — audit any page for citation readiness](#auto-geo-doctor--audit-any-page-for-citation-readiness)
+- [`auto-geo write` — generate pages from queries](#auto-geo-write--generate-pages-from-queries)
+- [`auto-geo fix` — rewrite a page for citation readiness](#auto-geo-fix--rewrite-a-page-for-citation-readiness)
+- [`auto-geo prompts` — manage your tracked prompts](#auto-geo-prompts--manage-your-tracked-prompts)
+- [`auto-geo check` — measure actual citation coverage](#auto-geo-check--measure-actual-citation-coverage)
+- [`auto-geo history` — citation coverage over time](#auto-geo-history--citation-coverage-over-time)
+- [Configuration](#configuration)
+- [The page architecture](#the-page-architecture)
+- [Agent-friendly output](#agent-friendly-output)
 - [LLM-friendly](#llm-friendly)
-- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
 
 ---
 
-## What is a GEO resource page?
+## Quickstart
 
-A **GEO resource page** (Generative Engine Optimization resource page) is a public web page whose structure, density, and citation signals are engineered to be quoted verbatim by AI search engines when answering a user's question. It is a successor to the SEO landing page.
+```bash
+# 1. Set up — config, .env.local key slots, and the .auto-geo workspace
+npx auto-geo@latest init
 
-A GEO resource page differs from a blog post in five ways:
+# 2. Add an API key to .env.local (auto-loaded by every command)
 
-1. **Architecture, not prose.** The page is composed of named, validated blocks (TL;DR, intro, sections, related guides, key takeaways, FAQ, disclosure) — not a freeform document. AI engines extract structured chunks; rigid structure improves extraction.
-2. **Answer-first.** Every H2 section opens with a 40–60 word "answer capsule" that fully answers the section's question before any supporting paragraph. AI engines preferentially quote self-contained answers.
-3. **Question-format headings.** H2 headings are written as the questions a user would ask an AI engine. The page is indexed against query intent, not topic.
-4. **Entity-dense.** Named entities (companies, people, products, frameworks) appear at high density. Empirical studies link entity density to ~4.8x higher citation probability.
-5. **Schema-derived.** Article, BreadcrumbList, FAQPage, Person, and ImageObject JSON-LD are auto-emitted from a typed payload. The agent never writes JSON-LD by hand.
+# 3. Audit any page — yours or a competitor's
+npx auto-geo doctor https://example.com/some-page
 
-`auto-geo` enforces all five at the API boundary. Publishing is a contract; malformed pages are rejected with a structured error.
+# 4. Track the prompts you want AI engines to cite you for
+npx auto-geo prompts add "best media monitoring tools" "what is GEO"
 
-See [`docs/concept.md`](./docs/concept.md) for a deeper walkthrough.
+# 5. Measure — every run is saved to history automatically
+npx auto-geo check
+
+# 6. Watch coverage move over time
+npx auto-geo history
+```
+
+Prefer a global install: `npm i -g auto-geo`, then drop the `npx`. Node `>=18.17` required.
 
 ---
 
-## Why auto-geo
+## What is GEO?
 
-### Why not just write Markdown blog posts?
+**Generative Engine Optimization** is the discipline of making your pages the ones AI search engines quote when they answer a question. It is the successor to SEO: instead of ranking in a list of links, you're competing to be *cited inside the answer*.
 
-Markdown is freeform — there's no contract that a post has a TL;DR, that every H2 opens with a 40–60 word answer capsule, or that the FAQ exists. AI engines preferentially quote self-contained, structurally regular chunks, so a freeform Markdown corpus leaves citation probability on the table. `auto-geo` enforces the structure at the publish boundary so every page that ships is shaped for extraction, not just human reading.
+The pages that win are not blog posts. Empirical research links citation probability to a specific shape:
 
-### Why not use a CMS like Sanity or Contentful?
+1. **Architecture, not prose.** Named, validated blocks — TL;DR, intro, question-format H2 sections, related guides, key takeaways, FAQ, disclosure. AI engines extract structured chunks; rigid structure improves extraction.
+2. **Answer-first.** Every section opens with a 40–60 word "answer capsule" that fully answers the section's question before any supporting paragraph.
+3. **Question-format headings.** H2s are written as the questions users actually ask AI engines.
+4. **Entity-dense.** Named entities (companies, people, products) at high density — linked to ~4.8x higher citation probability.
+5. **Schema-derived.** Article + FAQPage JSON-LD emitted from structure, not hand-written.
 
-Traditional and headless CMSs optimize for editorial workflow — drafts, scheduling, multi-user review, freeform field shapes. `auto-geo` is a typed publishing primitive that lives inside your own app and rejects malformed payloads with a structured error your agent can iterate on. It's downstream of editorial, not a replacement for it: pair it with a CMS if you need one, or generate payloads from an agent. Either way, the contract enforces GEO structure before the page goes live.
-
-### Why isn't this just SEO?
-
-SEO optimizes for ranking in a link-based search results page; GEO optimizes for being _quoted_ inside an AI-generated answer. The signals diverge — citation favors answer-first paragraphs, question-format H2s, entity density, and self-contained chunks; ranking historically rewarded backlinks and on-page keyword optimization. `auto-geo` enforces the citation signals empirically linked to higher inclusion rates in ChatGPT, Perplexity, Google AI Overviews, Claude, and Gemini answers — patterns most SEO tooling doesn't measure or enforce.
-
----
-
-## Install
-
-```bash
-npm install auto-geo zod
-```
-
-```bash
-pnpm add auto-geo zod
-```
-
-```bash
-yarn add auto-geo zod
-```
-
-> **Inside a pnpm workspace?** Use `pnpm add`. `npm install` sometimes errors with `Cannot read properties of null (reading 'matches')` when it traverses ancestor `pnpm-lock.yaml` files.
-
-Node `>=18.17` required. `zod` is a peer dependency. Framework / storage peers (`next`, `hono`, `@vercel/kv`, `@supabase/supabase-js`, `react`) are optional — install only what your adapter uses.
+`auto-geo` encodes this shape in a strict schema (see [`docs/sop.md`](./docs/sop.md) — the full standard operating procedure), audits any URL against it, generates new pages that conform to it, and then closes the loop by measuring whether the engines actually cite you.
 
 ---
 
-## 60-second quickstart
+## The workflow
 
-Paste this into a fresh `quickstart.ts`, run with `tsx quickstart.ts` (or compile and run), and you'll see a published URL.
+```
+        ┌──────────────────────────────────────────────────────┐
+        │                    auto-geo init                     │
+        │   config · .env.local · .auto-geo/ workspace         │
+        └──────────────────────────────────────────────────────┘
+              │
+   ┌──────────┼──────────────┬─────────────────┐
+   ▼          ▼              ▼                 ▼
+ doctor     write           fix             prompts
+ audit a    generate        rewrite an      track the queries
+ page       new pages       existing page   that matter to you
+   │          │              │                 │
+   └──────────┴──────────────┴────────┬────────┘
+                                      ▼
+                                    check ──── saves every run ────┐
+                                measure actual                     ▼
+                                citations                       history
+                                                            coverage over time,
+                                                            newly cited / lost
+```
 
-```ts
-// quickstart.ts
-import { runPublish } from "auto-geo";
-import { createMemoryStore } from "auto-geo/storage/memory";
+`doctor` measures *readiness* (is this page shaped for citation?). `check` measures *outcome* (is it actually being cited?). `history` turns the outcomes into a trend line.
 
-const store = createMemoryStore();
+---
 
-// A minimal payload satisfying every schema constraint.
-const payload = {
-  slug: "hello-auto-geo",
-  title: "What is auto-geo and how do I publish my first resource page?",
-  metaDescription:
-    "A minimal first publish showing how auto-geo validates and stores a GEO resource page end to end.",
-  category: "Tutorials",
-  excerpt:
-    "A minimal first publish showing how auto-geo validates and stores a GEO resource page end to end.",
-  author: {
-    name: "Jane Doe",
-    jobTitle: "Head of Content",
-    bio: "Jane writes about generative engine optimization and the architecture of pages that AI search engines cite.",
-  },
-  publishedAt: "2026-06-01",
-  geoMetadata: {
-    targetQueries: ["how does auto-geo publishing work"],
-    pageType: "resource" as const,
-    primaryFunction:
-      "Show a developer how to publish their first resource page.",
-    optimizationFramework: ["GEO" as const],
-    targetPlatforms: ["chatgpt" as const],
-    informationGainStatement:
-      "First-party demonstration of the auto-geo publish pipeline using the in-memory store, end to end.",
-    refreshCadence: "quarterly" as const,
-  },
-  tldr: {
-    text: "Auto-geo's publish pipeline validates an incoming payload, persists it to a content store, and returns a URL plus an array of soft warnings; this minimal example wires the pipeline against an in-memory store so you can see a successful publish in your terminal in under a minute without any external services involved at all.",
-  },
-  intro: {
-    blocks: [
-      {
-        type: "paragraph" as const,
-        text: "This minimal payload satisfies every required field of the auto-geo schema; in a real integration you would generate this payload from an agent or your editorial pipeline and POST it to your publishing endpoint, but here we call the underlying runPublish function directly against an in-memory store to demonstrate the contract without any external network calls or storage setup.",
-      },
-    ],
-  },
-  sections: [
-    {
-      heading: "How does the publish call work?",
-      answerCapsule:
-        "runPublish takes an unknown body plus options containing your store and site config; it parses the body against the Zod schema, calls store.publish on success, runs soft validation, and returns a discriminated-union result with a URL or an issues array so callers can act programmatically without parsing prose error messages.",
-      blocks: [],
-    },
-  ],
-  relatedGuides: {
-    items: [
-      {
-        title: "The GEO SOP",
-        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/sop.md",
-      },
-      {
-        title: "Page architecture",
-        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/architecture.md",
-      },
-      {
-        title: "Validation reference",
-        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/validation.md",
-      },
-      {
-        title: "Storage adapters",
-        url: "https://github.com/shadowresearch/auto-geo/blob/main/docs/storage.md",
-      },
-    ],
-  },
-  keyTakeaways: {
-    items: [
-      "Auto-geo enforces a strict seven-block architecture at the publish boundary so every published page is structurally citation-ready by design.",
-      "The runPublish function returns a discriminated-union result so callers branch on result.kind without parsing prose error strings ever.",
-      "Storage adapters are pluggable; the in-memory store ships for tests and demos, KV and Supabase ship for production deployments today.",
-      "Soft warnings come back on a successful publish so an agent can iterate on quality heuristics without being blocked by every non-critical recommendation.",
-    ],
-  },
-  faq: {
-    items: [
-      {
-        question: "Do I need a database to try auto-geo?",
-        answer:
-          "No, the in-memory store ships with the package and persists publishes for the lifetime of the process; it is intended for tests, demos, and the quickstart you are running right now, and you swap in a KV or Supabase adapter when you go to production without changing any of your call sites.",
-      },
-      {
-        question: "What does the publish result look like?",
-        answer:
-          "On success runPublish returns an object shaped kind ok with a slug, a url constructed from your site origin plus the base path plus the slug, and an array of soft warnings from the audit step; on failure it returns one of validation_failed, slug_reserved, or store_failed, each carrying enough context for the caller to surface or retry.",
-      },
-      {
-        question: "How do I wire this into a real HTTP endpoint?",
-        answer:
-          "Import createNextHandlers from auto-geo/next or the Hono adapter from auto-geo/hono, pass your store and site config, and export the returned POST and DELETE handlers from your route file; the adapters wrap runPublish with auth and revalidation so your endpoint becomes a one-file integration instead of a hand-rolled pipeline.",
-      },
-    ],
-  },
-  disclosure: {
-    text: "This quickstart is a runnable demonstration of the auto-geo publish pipeline using the in-memory store.",
-  },
-};
+## `auto-geo init` — set up the system
 
-const result = await runPublish(payload, {
-  store,
-  site: {
-    origin: "https://example.com",
-    publisher: {
-      name: "Example",
-      url: "https://example.com",
-      logo: "https://example.com/logo.png",
-    },
-  },
-});
+```bash
+npx auto-geo init        # interactive (a handful of questions)
+npx auto-geo init --yes  # non-interactive template
+```
 
-if (result.kind === "ok") {
-  console.log("Published:", result.url);
-  console.log("Warnings:", result.warnings.length);
-} else {
-  console.error("Publish failed:", result);
+One command scaffolds everything:
+
+| File | What it is |
+| --- | --- |
+| `auto-geo.config.json` | Your defaults — domain, provider, model, author. Committable; never holds secrets. |
+| `.env.local` | API key slots. Auto-loaded by every command. Gitignore it. |
+| `.auto-geo/prompts.txt` | Your tracked prompts — one per line, `#` comments allowed. |
+| `.auto-geo/checks/` | Every `check` run, saved as JSON. The data behind `history`. |
+
+The interactive flow ends by asking for the prompts you want to track, so a fresh project goes from zero to a measurable citation baseline in one sitting. `init` never overwrites an existing `.env.local` and refuses to overwrite an existing config without `--force`.
+
+---
+
+## `auto-geo doctor` — audit any page for citation readiness
+
+Run it on any URL — yours, a competitor's, every page in your sitemap — and get a structured report on the citation signals AI engines look for.
+
+```bash
+npx auto-geo doctor https://example.com/some-page
+```
+
+```text
+✓ TL;DR present (52 words, in range)
+✗ Question-format H2 headings (2 of 6 are question-format; SOP §3 targets all)
+✓ Article JSON-LD present
+✗ FAQPage JSON-LD present (No FAQPage JSON-LD block detected)
+✓ Entity density (12.3/1k words)
+✗ Image cadence (0 images for 1247 words)
+✓ Answer-first first paragraph
+✓ No self-link in related guides
+
+Score: 5 / 8 checks pass — moderate GEO posture
+
+Top 3 fixes (ranked by citation lift):
+  1. Add a FAQPage JSON-LD block. Each Q is a citable extraction target.
+  2. Convert 4 statement-form H2 headings to question form.
+  3. Add 2 images with descriptive alt text (entity + context).
+```
+
+```bash
+# Whole sitemap — mean score, lowest-scoring pages, most common failures
+npx auto-geo doctor --site https://example.com/sitemap.xml --max-pages 50
+
+# JSON for CI / dashboards
+npx auto-geo doctor https://example.com/page --json
+```
+
+Exit code `0` if score ≥ 75%, `1` otherwise — gate deploys on it. See [`docs/doctor.md`](./docs/doctor.md) for the full check reference.
+
+---
+
+## `auto-geo write` — generate pages from queries
+
+Give it your domain and the queries you want to be cited for; get back validated, publish-ready JSON files — one structured page per query, conforming to the full GEO architecture.
+
+```bash
+npx auto-geo write \
+  --query "what is GEO" \
+  --query "GEO vs SEO" \
+  --out ./resources
+```
+
+```text
+✓ "what is GEO"        → ./resources/geo.json (validated, ~$0.06)
+✓ "GEO vs SEO"         → ./resources/geo-vs-seo.json (validated, ~$0.06)
+
+Total: 2 pages · 2 ok · ~$0.12 spent · 31s elapsed
+```
+
+The system prompt encodes the [GEO SOP](./docs/sop.md) — TL;DR length, answer-capsule windows, banned superlatives, FAQ structure — and output is constrained to the schema at the type-system level via the Vercel AI SDK's `generateObject`, with a bounded self-correction loop on validation failure. Defaults: `gpt-5.4` (OpenAI) or `claude-sonnet-4-6` (Anthropic), auto-detected from whichever API key you have set.
+
+```bash
+# Dry-run — plan + cost estimate, no LLM calls
+npx auto-geo write --query "what is X" --dry-run
+
+# Batch from a file, anthropic, 4 pages at a time
+npx auto-geo write --queries-file queries.txt --provider anthropic --concurrency 4
+```
+
+With a config file (`auto-geo init`), `--domain`, author fields, and provider come from config — a bare `--query` is all you need. See [`docs/write.md`](./docs/write.md).
+
+---
+
+## `auto-geo fix` — rewrite a page for citation readiness
+
+Where `doctor` tells you what's wrong, `fix` produces a GEO-optimized rewrite that passes all 8 checks — fetched, audited, regenerated, and validated against the same schema `write` uses.
+
+```bash
+npx auto-geo fix https://www.example.com/some-blog-post --out ./fixed.json
+```
+
+```text
+Score (before):    3 / 8
+Generating rewrite via openai gpt-5.4...
+Score (projected): 8 / 8 — strong GEO posture
+→ ./fixed.json (validated)
+```
+
+```bash
+npx auto-geo fix https://example.com/page --provider anthropic   # Claude instead
+npx auto-geo fix https://example.com/page --dry-run              # audit + cost estimate only
+```
+
+See [`docs/fix.md`](./docs/fix.md).
+
+---
+
+## `auto-geo prompts` — manage your tracked prompts
+
+Your tracked prompts are the questions you want AI engines to answer by citing your domain. They live in `.auto-geo/prompts.txt` (plain text, committable) and they're what `check` runs by default.
+
+```bash
+npx auto-geo prompts add "best media monitoring tools" "what is GEO"
+npx auto-geo prompts            # numbered list
+npx auto-geo prompts rm 2       # by index — or by exact text
+```
+
+`prompts add` bootstraps the workspace on first use, so you don't even need `init` to start tracking.
+
+---
+
+## `auto-geo check` — measure actual citation coverage
+
+For each prompt, ask a real AI search engine and report whether your domain is among the citations. This is the ground truth `doctor` predicts.
+
+```bash
+npx auto-geo check        # tracked prompts, domain from config
+```
+
+```text
+  using 3 tracked prompts from .auto-geo/prompts.txt
+  [1/3] ✗ "what is GEO" — not cited (5 sources)
+  [2/3] ✓ "how do I get cited by ChatGPT" — cited (2 sources)
+  [3/3] ✓ "open source GEO tools" — cited (1 source)
+
+Coverage: 2/3 queries (67%) · 3 page citations total · ~$0.012 spent
+  saved → .auto-geo/checks/2026-06-10T13-22-05--perplexity.json (auto-geo history)
+```
+
+Engines: **perplexity** (default), **openai**, **anthropic**, **gemini**, **xai** (alias `grok`), or **`--engine all`** — which runs every engine whose API key is set and reports per-engine coverage plus a union roll-up.
+
+```bash
+# Explicit queries instead of the tracked set
+npx auto-geo check --domain shadow.inc --query "what is GEO"
+
+# Every engine you have keys for, union coverage
+npx auto-geo check --engine all
+
+# CI: fail the deploy when critical queries don't cite you
+npx auto-geo check --queries-file geo/critical-queries.txt && deploy
+
+# Streaming JSON for agents / dashboards
+npx auto-geo check --ndjson
+```
+
+Every run is saved to `.auto-geo/checks/` automatically (opt out with `--no-save`). Exit code `0` if coverage > 0%, `1` if 0%. See [`docs/check.md`](./docs/check.md) for output shapes, fan-out-query capture, domain-matching rules, and the `--format geo-audit` interop mode.
+
+---
+
+## `auto-geo history` — citation coverage over time
+
+The payoff for saving every run: a trend line. Run-by-run coverage with per-engine deltas, plus exactly which prompts you started or stopped being cited for.
+
+```bash
+npx auto-geo history
+```
+
+```text
+  2026-06-01 08:30  perplexity   33% ·   1/3 cited  $0.01
+  2026-06-08 09:15  perplexity   67% ↑34  2/3 cited  $0.01
+
+  Since last run (perplexity · 2026-06-01 08:30 ▸ 2026-06-08 09:15)
+    ✓ newly cited  open source GEO tools
+    ✗ lost         (none)
+
+  2 runs · .auto-geo/checks
+```
+
+Trends compare like with like — each run is measured against the previous run of the *same engine selector*. `--engine all` filters to multi-engine runs; `--limit N` controls depth; `--json` emits rows + delta machine-readably. See [`docs/history.md`](./docs/history.md).
+
+---
+
+## Configuration
+
+Set once with `auto-geo init`, override anywhere. Precedence, highest first:
+
+1. CLI flag
+2. Environment variable (provider auto-detected from which API key is set)
+3. `auto-geo.config.json` (walks up from cwd — monorepo-friendly)
+4. Built-in default
+
+```jsonc
+// auto-geo.config.json — committable, no secrets
+{
+  "domain": "https://www.example.com",
+  "basePath": "/resources",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "engine": "perplexity",
+  "concurrency": 4,
+  "author": {
+    "name": "Jane Doe",
+    "jobTitle": "Head of Content",
+    "bio": "Jane writes about generative engine optimization…"
+  }
 }
 ```
 
-That's it — no database, no auth setup, no framework. Once you've seen `Published: https://example.com/resources/hello-auto-geo` in your terminal, follow the production setup below to wire it into your real app.
+API keys live in `.env.local` (or `.env`), auto-loaded by every command — already-set environment variables always win:
+
+| Engine / provider | Env var |
+| --- | --- |
+| OpenAI (write, fix, check) | `OPENAI_API_KEY` |
+| Anthropic (write, fix, check) | `ANTHROPIC_API_KEY` |
+| Perplexity (check) | `PERPLEXITY_API_KEY` |
+| Gemini (check) | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
+| xAI / Grok (check) | `XAI_API_KEY` |
 
 ---
 
-## What's in this repo
+## The page architecture
 
-| Path                                      | What it is                                                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [`AGENT.md`](./AGENT.md)                  | The canonical setup spec. Hand this to your coding agent.                                                          |
-| [`core/`](./core)                         | Framework-agnostic schema, publish logic, validation heuristics, JSON-LD derivation. Zero framework deps.          |
-| [`adapters/storage/`](./adapters/storage) | Storage adapters — KV (Vercel KV / Upstash Redis), Supabase, in-memory. Implement the `ContentStore` interface.    |
-| [`adapters/http/`](./adapters/http)       | HTTP adapters — Next.js App Router, Hono. Wrap `core/publish` as a request handler.                                |
-| [`components/react/`](./components/react) | Reference React renderer. Restyleable Tailwind defaults; pluggable `LinkComponent`.                                |
-| [`mcp/`](./mcp)                           | MCP server that wraps the publish endpoint as a tool. Any MCP client (Claude, Cursor, your own agent) can publish. |
-| [`examples/`](./examples)                 | Working example apps for Next.js, Hono on Bun, Express, SvelteKit, and Fastify. See [Examples](#examples).         |
-| [`docs/`](./docs)                         | The substantive product. The GEO SOP, page architecture spec, validation reference, storage adapter guide.         |
-| [`tests/`](./tests)                       | Vitest suite covering schema, validation, JSON-LD, publish pipeline, memory store, and inline parser.              |
+Everything `write` and `fix` produce — and everything `doctor` audits for — follows a strict seven-block architecture:
+
+1. **TL;DR** — 40–60 word answer capsule
+2. **Intro** — context-setting blocks
+3. **Sections** — question-format H2s, each opening with a 40–60 word answer capsule
+4. **Related Guides** — 4–8 entries
+5. **Key Takeaways** — 4–6 declarative bullets
+6. **FAQ** — 3–10 Q&As with 40–60 word answers
+7. **Disclosure** — sourcing note, timestamp, publisher line
+
+Structural violations are hard errors (the generated payload is rejected and regenerated); density and cadence heuristics are soft warnings. The full spec: [`docs/architecture.md`](./docs/architecture.md), [`docs/validation.md`](./docs/validation.md), and the SOP behind every constraint: [`docs/sop.md`](./docs/sop.md).
+
+The output JSON is renderer-agnostic — POST it to your CMS, hydrate a template, or render it with your own components. The structure *is* the contract.
 
 ---
 
-## Quickstart (production setup)
+## Agent-friendly output
 
-Once you've run the 60-second quickstart above, this is how you wire `auto-geo` into a real app with a persistent store. The recommended path is to give this repo URL to your coding agent and let it read `AGENT.md`. If you want the short version:
+Every command is built to be driven by an agent as much as by a human:
+
+- `--json` — one stable, machine-readable object on stdout.
+- `--ndjson` (check) — one JSON line per query as results stream in, plus a `_summary` line.
+- Progress goes to **stderr**, results to **stdout** — pipes stay clean.
+- Stable exit codes — `doctor` and `check` are CI gates out of the box.
+- `--no-color` / `NO_COLOR` / non-TTY detection for log-friendly output.
 
 ```bash
-# In an existing Next.js 15+ App Router project
-pnpm add zod @vercel/kv
-# Copy these files into your repo:
-#   - core/                    → src/lib/auto-geo/core/
-#   - adapters/storage/kv.ts   → src/lib/auto-geo/storage.ts
-#   - adapters/http/next.ts    → src/app/api/resources/publish/route.ts
-#   - components/react/        → src/components/auto-geo/
-# Set GEO_PUBLISH_TOKEN in .env.local (openssl rand -hex 32)
-# Wire a /resources/[slug]/page.tsx that reads from your store and renders ResourceArticle.
+npx auto-geo check --ndjson | jq 'select(.cited) | .query'
 ```
-
-See [`examples/next-minimal/`](./examples/next-minimal) for a working reference and [`AGENT.md`](./AGENT.md) for the step-by-step setup.
-
-### Or as a package
-
-```bash
-pnpm add auto-geo zod
-```
-
-```ts
-// app/api/resources/publish/route.ts
-import { createNextHandlers } from "auto-geo/next";
-import { createKvStore } from "auto-geo/storage/kv";
-
-const handlers = createNextHandlers({
-  store: createKvStore(),
-  site: {
-    origin: "https://example.com",
-    publisher: {
-      name: "Acme",
-      url: "https://example.com",
-      logo: "https://example.com/logo.png",
-    },
-  },
-});
-
-export const POST = handlers.POST;
-export const DELETE = handlers.DELETE;
-```
-
-```ts
-// app/resources/[slug]/page.tsx
-import { ResourceArticle } from "auto-geo/react";
-import { deriveAllJsonLd, safeJsonLd } from "auto-geo/jsonld";
-// ... resolve payload from your store, then render
-```
-
----
-
-## Examples
-
-Working minimal example apps for the most common backends. Each one
-boots locally with `pnpm install` + the framework's dev script, ships
-with an in-memory store seeded with one valid payload, and is tested
-end to end against `auto-geo@0.1.1` from npm.
-
-| Framework            | Path                                             | Storage | Notes                                        |
-| -------------------- | ------------------------------------------------ | ------- | -------------------------------------------- |
-| Next.js (App Router) | [examples/next-minimal](./examples/next-minimal) | memory  | Full render + publish                        |
-| Hono (Bun)           | [examples/hono-bun](./examples/hono-bun)         | memory  | Endpoint only — uses `auto-geo/hono`         |
-| Express              | [examples/express](./examples/express)           | memory  | Endpoint only — `runPublish` inline          |
-| SvelteKit            | [examples/sveltekit](./examples/sveltekit)       | memory  | Endpoint only — `runPublish` in `+server.ts` |
-| Fastify              | [examples/fastify](./examples/fastify)           | memory  | Endpoint only — `runPublish` inline          |
-
-`next-minimal` is the integration template — it has both the publish
-endpoint and the React render path. The other four are endpoint-only:
-they prove the publish contract on each backend with a sample `curl`,
-and rely on `next-minimal` (or your own renderer) for HTML output. Each
-example's README has a copy-pasteable `curl` for the canonical payload
-and a verification step.
-
----
-
-## The publishing flow
-
-```
-┌─────────────────┐    POST /api/resources/publish    ┌──────────────────┐
-│  Your agent     │ ───────────────────────────────▶  │  Your Next/Hono  │
-│  (Claude, your  │    Bearer GEO_PUBLISH_TOKEN       │  app             │
-│  custom tool,   │    JSON body: ResourcePayload     │                  │
-│  Shadow, etc.)  │                                   │  validate (Zod)  │
-└─────────────────┘                                   │  audit (soft)    │
-                                                      │  store.publish() │
-                                                      │  revalidate      │
-                                                      └────────┬─────────┘
-                                                               │
-                                              ┌────────────────▼─────────────┐
-                                              │  /resources/[slug] page      │
-                                              │  - ResourceArticle render    │
-                                              │  - Article + FAQPage JSON-LD │
-                                              │  - canonical, OG, Twitter    │
-                                              └──────────────────────────────┘
-```
-
-The publishing endpoint is the contract. Anything that can issue an authenticated POST can publish — your own scheduled job, an MCP-aware AI client, a CLI, a webhook. `auto-geo` does not prescribe how content is generated or when it's published. That's your moat.
-
----
-
-## Hard rejects vs. soft warnings
-
-`auto-geo` distinguishes between _structural violations_ (rejected with HTTP 400) and _quality heuristics_ (returned as `warnings[]` on a 200 response). The split is deliberate: structure is a contract; quality is a continuum.
-
-**Hard rejects** include: missing required blocks, TL;DR not 40–60 words, FAQ answer not 40–60 words, related-guides count outside 4–8, key-takeaways count outside 4–6, banned promotional superlatives without attribution, raw HTML in prose fields, invalid URLs.
-
-**Soft warnings** include: section length outside 134–167 words, paragraph length outside 60–100 words, entity density below 15, statistics density below page-type target, image cadence below 1 per 500 words, H2 heading not in question format, self-link in related guides.
-
-Your agent can iterate on soft warnings by re-posting an updated payload (republishing overwrites by slug). Or surface the warnings to the user and ship as-is. See [`docs/validation.md`](./docs/validation.md) for the full reference.
-
----
-
-## How it compares
-
-|                   | Traditional CMS  | Headless CMS                | `auto-geo`                      |
-| ----------------- | ---------------- | --------------------------- | ------------------------------- |
-| Optimized for     | Human reading    | Multi-channel delivery      | AI engine citation              |
-| Content shape     | Freeform prose   | Freeform with custom fields | Validated 7-block architecture  |
-| Validation        | Editorial review | Schema-light                | Strict Zod at publish boundary  |
-| Schema.org        | Manual           | Manual or plugin            | Auto-derived from payload       |
-| Agent integration | Custom           | Custom                      | First-class (MCP, REST)         |
-| Storage           | Bundled          | Bundled or hosted           | Pluggable adapter (your choice) |
-| Lock-in           | High             | Medium                      | None — copy the files           |
-
-`auto-geo` is _not_ a CMS. It is a typed publishing primitive that lives inside your app. If you need editorial workflows, drafts, scheduled publish, multi-user collaboration, or a media library, pair it with a CMS — `auto-geo` is downstream of the editorial process, not a replacement for it.
-
----
-
-## API
-
-The publish endpoint contract is described as an OpenAPI 3.1 document at [`openapi.yaml`](./openapi.yaml). It covers the two operations the reference adapters expose:
-
-- `POST /api/resources/publish` — validate, persist, and revalidate a `ResourcePublishPayload`.
-- `DELETE /api/resources/publish?slug={slug}` — remove a previously published resource.
-
-The point isn't a hosted endpoint — there isn't one. The point is to give any HTTP client (Postman, Insomnia, ChatGPT Custom GPT Action, Claude with HTTP tools, your own typed client generator) a machine-readable description of the contract you're mounting in your own app via [`createNextHandlers`](./adapters/http/next.ts) or [`createHonoRouter`](./adapters/http/hono.ts). See [`docs/architecture.md`](./docs/architecture.md) for the architectural spec the schema enforces and [`docs/validation.md`](./docs/validation.md) for the hard-reject / soft-warning split.
 
 ---
 
 ## LLM-friendly
 
-`auto-geo` is, in essence, a tool whose output is content meant to be cited by LLMs. So this repo eats its own dogfood — it's discoverable by AI agents and crawlers in the same ways it teaches you to make your own pages discoverable.
+`auto-geo` is a tool whose output is content meant to be cited by LLMs — so this repo eats its own dogfood:
 
-- [`llms.txt`](./llms.txt) — a curated index of the most important content in the repo, following the [llmstxt.org](https://llmstxt.org) convention. Hand the URL to any LLM and it gets a fast, structured map of the project.
-- [`llms-full.txt`](./llms-full.txt) — the expanded variant. Inlines the README plus every substantive doc (concept, SOP, architecture, validation, storage adapters) into a single file so an LLM can ingest the whole project in one fetch.
-- [`openapi.yaml`](./openapi.yaml) — machine-readable contract for the publish endpoint, usable by any HTTP-tool-aware AI client.
-- **GitHub Pages site** at [shadowresearch.github.io/auto-geo](https://shadowresearch.github.io/auto-geo/) — every page advertises `llms.txt`, `llms-full.txt`, and `openapi.yaml` via `<link rel="alternate" type="text/plain">` tags in the `<head>`, emits JSON-LD `Article` markup, and carries a "Built with auto-geo" footer.
-
----
-
-## Roadmap
-
-Tracked in [GitHub issues](https://github.com/shadowresearch/auto-geo/issues). Headline items for v0.2+:
-
-- Additional HTTP adapters: Express, Fastify, Elysia.
-- Additional storage adapters: Postgres (direct), DynamoDB, Cloudflare D1.
-- A canonical Vue/Svelte renderer parity with React.
-- A standalone CLI for publishing from scripts and CI pipelines.
-- Audit / "page health" command that re-runs `auditResource` against all stored pages on a schedule.
-- An optional `geo-meta` field for indexing recipes (semantic anchors, query-cluster routing).
-
-Have a proposal? Open a [feature request](https://github.com/shadowresearch/auto-geo/issues/new/choose).
+- [`llms.txt`](./llms.txt) — a curated index following the [llmstxt.org](https://llmstxt.org) convention.
+- [`llms-full.txt`](./llms-full.txt) — README + every substantive doc inlined into a single file for one-fetch ingestion.
+- **GitHub Pages site** at [shadowresearch.github.io/auto-geo](https://shadowresearch.github.io/auto-geo/) — advertises both via `<link rel="alternate">`, emits Article JSON-LD.
+- [`AGENT.md`](./AGENT.md) — a compact operating spec for coding agents driving the CLI.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Bug reports, schema improvements, new adapters, and documentation refinements all welcome.
-
-Quick links:
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Bug reports, check improvements, new engines, and documentation refinements all welcome.
 
 - [Code of Conduct](./CODE_OF_CONDUCT.md)
 - [Security Policy](./SECURITY.md)
@@ -436,21 +413,13 @@ Quick links:
 
 ## License
 
-[MIT](./LICENSE). The reference React components include a default "Built with auto-geo by Shadow" credit in the disclosure block; pass `disclosureSuffix={null}` to suppress, or override with your own JSX.
-
----
-
-## Related
-
-- **The GEO SOP** — [`docs/sop.md`](./docs/sop.md). The full standard operating procedure for GEO resource pages. This is the substantive product.
-- **Page architecture** — [`docs/architecture.md`](./docs/architecture.md). Spec for the seven mandatory blocks.
-- **Shadow** — [shadow.inc](https://www.shadow.inc). The media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map. Shadow runs `auto-geo` end-to-end on a schedule for media research, PR, and communications teams.
+[MIT](./LICENSE).
 
 ---
 
 ## About Shadow
 
-Shadow is a media research lab building the next generation of AI-powered media intelligence and communications technology. Shadow is built in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map.
+Shadow is a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map. Shadow runs `auto-geo` end-to-end on a schedule for media research, PR, and communications teams.
 
 Learn more at [shadow.inc](https://www.shadow.inc).
 
@@ -482,27 +451,27 @@ It is a successor to the SEO landing page. Where SEO optimized for keyword match
 
 AI engines do not read pages; they _extract chunks_. The chunk most likely to be quoted is one that fully answers a question on its own — no anaphora, no "as we discussed above," no setup. The TL;DR + question-format H2 + answer-capsule pattern produces exactly that shape: every block is independently extractable.
 
-Rigid validation at the publish boundary makes the contract enforceable. An agent that generates an under-length TL;DR or skips the FAQ block is told no, in machine-readable form, before the page is ever indexed. The schema is the SOP.
+Rigid validation makes the contract enforceable. A generation run that produces an under-length TL;DR or skips the FAQ block is told no, in machine-readable form, before the page ever ships. The schema is the SOP.
 
 ## What auto-geo is
 
-`auto-geo` is the publishing primitive that enforces this contract. It provides:
+`auto-geo` is the CLI engine that enforces — and closes the loop on — this contract. It provides:
 
-1. **A Zod schema** (`core/schema.ts`) — the contract. Validates payload shape, length constraints, banned superlatives, structural blocks.
-2. **An authenticated POST endpoint** (`adapters/http/*`) — the integration surface. Any agent or process that can issue an authenticated HTTP request can publish.
-3. **A React renderer** (`components/react/`) — turns a validated payload into a page.
-4. **JSON-LD derivation** (`core/jsonld.ts`) — Schema.org Article, BreadcrumbList, FAQPage, Person, ImageObject emitted automatically from the typed payload.
-5. **An MCP server** (`mcp/`) — exposes the publish endpoint as a tool for MCP-aware AI clients.
+1. **A strict Zod schema** (`cli/schema.ts`) — the contract. Validates payload shape, length constraints, banned superlatives, structural blocks.
+2. **`auto-geo doctor`** — audits any public URL (or a whole sitemap) against the architecture's citation signals.
+3. **`auto-geo write` / `auto-geo fix`** — generate new pages from target queries, or rewrite existing ones, with output constrained to the schema and a self-correction loop on violation.
+4. **`auto-geo check`** — measures the outcome: do AI engines (Perplexity, ChatGPT, Claude, Gemini, Grok) actually cite your domain for the prompts you track?
+5. **`auto-geo history`** — trends citation coverage over time from the saved check runs in `.auto-geo/checks/`.
 
-`auto-geo` does _not_ generate content. The content-generation pipeline — research, outline, drafting, citation gathering, structure assembly — is your problem. `auto-geo`'s job is to make sure that whatever a generation pipeline produces conforms to the GEO architecture before it goes public.
+`auto-geo` generates *page payloads*, not live pages. Rendering and hosting — your CMS, your framework, your pipeline — stay yours. `auto-geo`'s job is to make sure whatever ships conforms to the GEO architecture, and to prove whether it's working.
 
 ## When to use auto-geo
 
-You have content you want AI engines to cite, and you want a publishing endpoint that enforces the GEO architecture so your generation pipeline can iterate against a typed contract rather than freeform prose review.
+You have content you want AI engines to cite, and you want tooling that enforces the GEO architecture so your pipeline can iterate against a typed contract rather than freeform prose review — and that measures whether the citations actually materialize.
 
 Examples:
 
-- An agency runs a content pipeline that produces topic-level resource pages on behalf of clients. `auto-geo` is the publish target; the pipeline ships pages without a human reviewer needing to enforce structure.
+- An agency runs a content pipeline that produces topic-level resource pages on behalf of clients. `auto-geo write` generates the pages, `doctor` gates them in CI, and `check` is the weekly client scorecard.
 - A SaaS company wants definitive pages for every query its customers ask AI assistants. `auto-geo` lets the marketing team plus an AI agent maintain a programmatic catalog at scale.
 - A research org publishes findings and wants them surfaced by AI search. The schema's `citations[]` array drives `Article.citation` in Schema.org, which is a credibility signal AI engines weight heavily.
 
@@ -520,7 +489,7 @@ Examples:
 
 The standard operating procedure for generative engine optimization resource pages.
 
-This document is the substantive spec behind `auto-geo`'s schema and validation heuristics. Every word-count constraint in `core/schema.ts` and every soft-warning threshold in `core/validation.ts` traces back to a section here. Read this document before deviating from any rule the code enforces.
+This document is the substantive spec behind `auto-geo`'s schema and validation heuristics. Every word-count constraint in `cli/schema.ts` and every soft-warning threshold in `cli/checks.ts` traces back to a section here. Read this document before deviating from any rule the code enforces.
 
 The SOP is calibrated to the public retrieval and citation behavior of major AI search engines (ChatGPT, Perplexity, Google AI Overviews, Google AI Mode, Claude, Gemini, Copilot) as of early 2026. Specific numerical thresholds (e.g., citation lift percentages, density ratios) are heuristic — they reflect the working consensus from internal experimentation and external GEO research. Treat them as starting points, not laws.
 
@@ -542,7 +511,7 @@ A GEO resource page typically serves one or more of:
 - **GEO** (Generative Engine Optimization) — Optimizes for inclusion in synthesized responses (Google AI Overviews, AI Mode).
 - **LLMO** (Large Language Model Optimization) — Optimizes for inclusion in the underlying training and retrieval corpora of LLMs themselves.
 
-A page can serve all three. `core/schema.ts`'s `geoMetadata.optimizationFramework` field records which.
+A page can serve all three. `cli/schema.ts`'s `geoMetadata.optimizationFramework` field records which.
 
 ---
 
@@ -555,7 +524,7 @@ H2 headings are written as the questions a user would type into an AI engine, no
 
 Rationale: AI engines retrieve against query intent. A page whose H2s mirror prompt phrasing is matched directly. A page whose H2s are internal labels requires the engine to synthesize a connection — synthesis costs the engine; direct matches are cheap.
 
-`core/validation.ts` flags H2s that don't contain `?` or are outside 4-12 words.
+`cli/checks.ts` flags H2s that don't contain `?` or are outside 4-12 words.
 
 ---
 
@@ -577,7 +546,7 @@ Five page types, each with calibrated word-count and density targets:
 - **Category**: An overview-style page that organizes a topic and links out to deeper pages. Drives entity-graph coverage.
 - **Listicle**: "Top N X." High extractability; AI engines often quote individual list items verbatim.
 
-`geoMetadata.pageType` selects the expectation set. `core/validation.ts` surfaces soft warnings when page totals are outside the range.
+`geoMetadata.pageType` selects the expectation set. `cli/checks.ts` surfaces soft warnings when page totals are outside the range.
 
 ---
 
@@ -628,7 +597,7 @@ The FAQ block drives `FAQPage` Schema.org markup, which is extracted by retrieva
 
 The empirical link: entity-dense pages show ~4.8x higher citation probability than entity-sparse pages of similar length. Entity density is a credibility signal — pages that name specific actors are treated as more authoritative than pages that gesture at abstractions.
 
-`core/validation.ts` runs a simple heuristic (joined capitalized words after stripping inline markers and sentence-starters) and flags pages below 15.
+`cli/checks.ts` runs a simple heuristic (joined capitalized words after stripping inline markers and sentence-starters) and flags pages below 15.
 
 ### §5h. Banned promotional superlatives
 
@@ -636,7 +605,7 @@ The following phrases carry a measured citation penalty (~26%) when used without
 
 - "industry-leading", "best-in-class", "revolutionary", "game-changing", "cutting-edge", "world-class", "world's leading", "the leading", "the premier", "next-generation", "first-of-its-kind", "one of a kind"
 
-`core/schema.ts` rejects these as **hard errors** unless:
+`cli/schema.ts` rejects these as **hard errors** unless:
 
 - The phrase appears inside straight double-quotes (quoted passage).
 - The phrase is followed within ~80 characters by an attribution marker: `(per ...)`, `(Source: ...)`, `[Named Source]`, or `by [Named Source]`.
@@ -670,7 +639,7 @@ Rules:
 - Must answer the section heading without requiring context from elsewhere on the page.
 - No anaphora ("the above," "this," "we discussed").
 - One main claim per capsule.
-- 40-60 words, hard-enforced by `core/schema.ts`.
+- 40-60 words, hard-enforced by `cli/schema.ts`.
 
 The answer capsule is the highest-value chunk on the page. It is the most likely thing to be quoted verbatim by an AI engine. Every other block on the page exists to support the capsule.
 
@@ -706,7 +675,7 @@ Before publishing, articulate what makes this page non-redundant. If the answer 
 
 ## §13. Schema.org markup
 
-Auto-emitted by `core/jsonld.ts` from the typed payload. The agent never writes JSON-LD by hand. Five schema types are derived:
+Derived mechanically from the typed payload by the host renderer — the agent never writes JSON-LD by hand. Five schema types map directly from structured fields:
 
 - **Article** — page metadata, author, publisher, dates, citations
 - **BreadcrumbList** — Home → Resources → page title
@@ -750,7 +719,7 @@ Two cadences:
 
 ## Maintenance
 
-This SOP is versioned with `auto-geo`. When the empirical thresholds in `core/validation.ts` change, update the corresponding section here. The intent is that this document and the code stay in lockstep — reading the SOP should always tell you what the code is doing and why.
+This SOP is versioned with `auto-geo`. When the empirical thresholds in `cli/checks.ts` change, update the corresponding section here. The intent is that this document and the code stay in lockstep — reading the SOP should always tell you what the code is doing and why.
 
 External GEO research is rapidly evolving. Treat specific numerical claims (e.g., "4.8x citation lift") as snapshots, not eternal truths.
 
@@ -759,8 +728,6 @@ External GEO research is rapidly evolving. Treat specific numerical claims (e.g.
 
 # Page architecture
 
-
-> The HTTP contract that enforces this architecture is described in machine-readable form at [`openapi.yaml`](../openapi.yaml) — drop it into Postman, Insomnia, or a ChatGPT Custom GPT Action to call the publish endpoint against your own deployment.
 
 A GEO resource page is composed of seven blocks, in fixed order:
 
@@ -777,7 +744,7 @@ The host renderer also auto-injects:
 - **Metadata line** — "Last updated · By [author]" above the TL;DR.
 - **About the Author** — derived from `author.bio`, between FAQ and disclosure.
 
-Every block is validated at the publish boundary. Omissions return 400 with a Zod issue list.
+Every block is validated against the resource schema. When `auto-geo write` or `auto-geo fix` generates a payload that violates a constraint, the payload is rejected with a Zod issue list and regenerated via the bounded self-correction loop.
 
 ## The seven blocks
 
@@ -970,13 +937,13 @@ See `docs/sop.md` for the full standard operating procedure and the empirical ba
 # Validation reference
 
 
-`auto-geo` enforces two layers of validation: **hard rejects** at the schema boundary (HTTP 400) and **soft warnings** in the success response (HTTP 200 with `warnings[]`).
+`auto-geo` enforces two layers of validation: **hard rejects** at the schema boundary and **soft quality heuristics** audited by `auto-geo doctor`.
 
 The split is deliberate: structure is a contract; quality is a continuum.
 
-## Hard rejects (HTTP 400)
+## Hard rejects
 
-Hard rejects come from `core/schema.ts` (Zod). Every constraint listed below returns 400 with a `{ error, issues: [{ path, message }] }` body.
+Hard rejects come from the resource schema (`cli/schema.ts`, Zod). When `auto-geo write` or `auto-geo fix` generates a payload that violates a constraint below, the payload is rejected with a `{ path, message }` issue list and regenerated via the bounded self-correction retry loop (`--max-retries`, default 3).
 
 ### Identity
 
@@ -1055,13 +1022,9 @@ The following phrases are rejected when they appear _outside_ a quoted passage A
 
 See SOP §5h for the rationale (measured citation penalty).
 
-### Reserved slugs (HTTP 409)
+## Soft quality heuristics
 
-Slugs in `reservedSlugs` (configured per deployment) collide with statically routed pages in the host app. Publishing them returns 409.
-
-## Soft warnings (HTTP 200, `warnings[]`)
-
-Soft warnings come from `core/validation.ts` (`auditResource`). They surface SOP heuristics that are too noisy to enforce as hard errors but worth flagging for an iterating agent.
+Soft heuristics surface SOP guidance that is too noisy to enforce as hard errors. They never block generation; `auto-geo doctor` audits live pages against the same signals (entity density, question-format H2s, image cadence, answer-first ledes) and ranks the fixes by citation lift.
 
 ### Per-section
 
@@ -1087,111 +1050,11 @@ Soft warnings come from `core/validation.ts` (`auditResource`). They surface SOP
 | `imageCadence`           | Images below `floor(total / 500)`            | §7b |
 | `relatedGuides.items[N]` | Self-link in Related Guides                  | §5d |
 
-### Acting on warnings
+### Acting on heuristics
 
-The publish endpoint always returns 200 with warnings — they never block publication. The calling agent can:
+Heuristics never block a `write`/`fix` run. The loop:
 
-1. **Ship as-is.** Surface warnings to the user; treat the page as published. Appropriate when warnings are low-severity or the agent has reason to override (e.g., a short listicle that legitimately has fewer lists than the threshold).
-2. **Iterate.** Modify the payload to address the warnings and re-POST. The publish endpoint is idempotent on slug — republishing overwrites.
-
-The MCP server forwards the full warnings array back to the calling AI client, which can drive the iteration loop autonomously.
-
-
----
-
-# Storage adapters
-
-
-`auto-geo` storage is pluggable behind the `ContentStore` interface in `core/store.ts`:
-
-```ts
-interface ContentStore {
-  publish(payload: ResourcePublishPayload): Promise<void>;
-  get(slug: string): Promise<StoredResource | null>;
-  list(opts?: ListOptions): Promise<StoredResource[]>;
-  delete(slug: string): Promise<void>;
-}
-```
-
-Three reference adapters ship in `adapters/storage/`. All three implement the same interface; the publish endpoint and render path are adapter-agnostic.
-
-## KV (Vercel KV / Upstash Redis)
-
-```ts
-import { createKvStore } from "auto-geo/storage/kv";
-const store = createKvStore({ namespace: "myapp" }); // namespace optional
-```
-
-**Required env**:
-
-```
-KV_REST_API_URL=...
-KV_REST_API_TOKEN=...
-```
-
-**Schema**: two keys per resource.
-
-- `[namespace:]resource:post:{slug}` — JSON of `StoredResource`.
-- `[namespace:]resource:slugs` — sorted set scored by `publishedAt` epoch ms, for chronological listing.
-
-**When to use**: Vercel deployments, zero-infrastructure preference, sub-millisecond reads. The `@vercel/kv` SDK works with both Vercel KV and Upstash Redis.
-
-**Trade-offs**: no SQL, no dashboard. Backups via Upstash UI or `redis-cli BGSAVE`.
-
-## Supabase
-
-```ts
-import { createSupabaseStore } from "auto-geo/storage/supabase";
-const store = createSupabaseStore(); // reads SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
-```
-
-**Required env**:
-
-```
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...   # service-role key only — never expose this client-side
-```
-
-**Schema**: one table. Run `adapters/storage/supabase.sql` in the Supabase SQL editor before first use:
-
-```sql
-create table auto_geo_resources (
-  slug          text primary key,
-  payload       jsonb not null,
-  published_at  timestamptz not null,
-  stored_at     timestamptz not null default now()
-);
-create index on auto_geo_resources (published_at desc);
-```
-
-**When to use**: you want a dashboard, SQL access for ad-hoc queries, or RLS policies layered on top.
-
-**Trade-offs**: slightly higher read latency than KV. Service-role key must be kept server-side.
-
-## In-memory
-
-```ts
-import { createMemoryStore } from "auto-geo/storage/memory";
-const store = createMemoryStore({
-  seed: [
-    /* optional initial payloads */
-  ],
-});
-```
-
-Process-local. Loses everything on restart. Use only for tests, demos, and local development. The adapter accepts a `seed` array of `ResourcePublishPayload` so example apps can render a populated `/resources` index on first run.
-
-## Writing your own adapter
-
-Implement the `ContentStore` interface. Three contracts to honor:
-
-1. **`publish` must be idempotent on slug.** Re-publishing the same slug overwrites — no insert-fails, no version branching.
-2. **`publish` and `delete` should throw on backend errors.** The publish endpoint surfaces backend failures as HTTP 502; silent no-ops here look like ghost successes.
-3. **`get` and `list` should degrade gracefully.** Return `null` / `[]` on transient errors, log server-side. The render path is read-heavy; throwing here would crash unrelated pages.
-
-A `ContentStore` that wraps a third store (e.g., a cache layer over Supabase) is fine — just keep the interface contracts.
-
-## Migrating between adapters
-
-There is no built-in migration. Use the storage layer's native export/import (Supabase: `pg_dump`; KV: `SCAN` + a script) and adapt the shape if you change adapter. The stored shape is `ResourcePublishPayload + { storedAt }` — `payload`-shaped for Supabase, JSON-stringified for KV — so most migrations are a one-pass transform.
+1. **Ship as-is.** Appropriate when the flags are low-severity or you have reason to override (e.g., a short listicle that legitimately has fewer lists than the threshold).
+2. **Iterate.** Publish the page, run `auto-geo doctor <url>`, and address the ranked fixes. Re-run until the score clears your CI gate (default 75%).
+3. **Verify.** `auto-geo check` measures whether the improved page actually earns citations; `auto-geo history` shows the trend.
 

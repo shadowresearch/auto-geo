@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { resourcePublishSchema } from "../core/schema";
-import type { ResourcePublishPayload } from "../core/schema";
+import { resourcePublishSchema } from "../cli/schema";
+import type { ResourcePublishPayload } from "../cli/schema";
 import {
   deriveSlugHint,
   projectChecksAgainstPayload,

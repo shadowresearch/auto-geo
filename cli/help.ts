@@ -41,21 +41,31 @@ import {
 export const REPO_URL = "https://github.com/shadowresearch/auto-geo";
 export const NPM_URL = "https://www.npmjs.com/package/auto-geo";
 export const SHADOW_URL = "https://www.shadow.inc";
-export const GLOBAL_TAGLINE = "publishing engine for GEO resource pages";
+export const GLOBAL_TAGLINE = "the open-source GEO engine";
 
-export type CommandName = "init" | "doctor" | "fix" | "write" | "check";
+export type CommandName =
+  | "init"
+  | "doctor"
+  | "fix"
+  | "write"
+  | "check"
+  | "prompts"
+  | "history";
 
 // Ordering matters — renderGlobalHelp iterates this object's keys to
 // render the "Commands:" block, and we want users to read it in
 // workflow order: set up once with `init`, then audit (`doctor`),
-// generate (`write`), improve (`fix`), and measure (`check`).
+// generate (`write`), improve (`fix`), track the queries that matter
+// (`prompts`), measure (`check`), and trend over time (`history`).
 const COMMAND_SUMMARIES: Record<CommandName, string> = {
-  init: "Scaffold auto-geo.config.json + .env.local for first-run setup",
+  init: "Set up the full system — config, .env.local, and the .auto-geo workspace",
   doctor: "Audit a page for citation readiness",
   write: "Generate publish-ready resource pages from target queries",
   fix: "Rewrite a page so it passes the doctor checks",
+  prompts: "Manage the tracked prompts that check runs by default",
   check:
     "Measure if AI engines (Perplexity / OpenAI / Claude / Gemini / Grok) cite your domain",
+  history: "Citation coverage over time — every check run, trended",
 };
 
 // ── Data model ─────────────────────────────────────────────────────
@@ -105,7 +115,8 @@ export type CommandHelp = {
 export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
   init: {
     command: "init",
-    tagline: "scaffold auto-geo.config.json + .env.local for first-run setup",
+    tagline:
+      "set up the full system — config, .env.local, and the .auto-geo workspace",
     usage: ["auto-geo init [options]"],
     sections: [
       {
@@ -141,7 +152,7 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
         lines: ["auto-geo init --yes"],
       },
     ],
-    note: "Never overwrites an existing .env.local. API keys NEVER live in the config file — they stay in .env.local (gitignored).",
+    note: "Writes auto-geo.config.json (committable, no secrets), .env.local (key slots; never overwritten), and the .auto-geo/ workspace (tracked prompts + check history). API keys NEVER live in the config file.",
     exitCode:
       "Exit code: 0 on success, 1 if the config already exists (use --force).",
     docsUrl:
@@ -430,10 +441,68 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
     docsUrl:
       "https://github.com/shadowresearch/auto-geo/blob/main/docs/write.md",
   },
+  prompts: {
+    command: "prompts",
+    tagline: "manage the tracked prompts that check runs by default",
+    usage: [
+      "auto-geo prompts [list]",
+      'auto-geo prompts add "<prompt>" ["<prompt>" ...]',
+      "auto-geo prompts rm <index|text>",
+    ],
+    sections: [
+      {
+        heading: "Actions",
+        items: [
+          {
+            flag: "list",
+            description: "Numbered list of tracked prompts (the default)",
+          },
+          {
+            flag: "add <text> [...]",
+            description:
+              "Track one or more prompts (dedupes; creates .auto-geo/ on first use)",
+          },
+          {
+            flag: "rm <index|text>",
+            description:
+              "Stop tracking one prompt, by its list index or exact text",
+          },
+        ],
+      },
+      {
+        heading: "Output",
+        items: [
+          { flag: "--json", description: "Machine-readable outcome" },
+          { flag: "--no-color", description: "Disable ANSI colors" },
+          {
+            flag: "--narrow",
+            description: "Tighten layout for narrow terminals",
+          },
+        ],
+      },
+    ],
+    examples: [
+      {
+        comment: "Track the queries you want AI engines to cite you for",
+        lines: [
+          'auto-geo prompts add "best media monitoring tools" "what is GEO"',
+        ],
+      },
+      {
+        comment: "Review, then drop the second prompt",
+        lines: ["auto-geo prompts", "auto-geo prompts rm 2"],
+      },
+    ],
+    note: "Tracked prompts live in .auto-geo/prompts.txt (plain text, committable). `auto-geo check` runs the tracked set whenever no --query / --queries-file is passed.",
+    exitCode: "Exit code: 0 on success, 1 on failure.",
+    docsUrl:
+      "https://github.com/shadowresearch/auto-geo/blob/main/docs/prompts.md",
+  },
   check: {
     command: "check",
     tagline: "measure citation coverage in AI search engines",
     usage: [
+      "auto-geo check                      (runs your tracked prompts)",
       "auto-geo check --domain <d> --query <q> [--query <q> ...]",
       "auto-geo check --domain <d> --queries-file <path>",
     ],
@@ -454,6 +523,11 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
           {
             flag: "--queries-file <path>",
             description: "Newline-separated file of queries",
+          },
+          {
+            flag: "(none)",
+            description:
+              "With neither flag, runs your tracked prompts (.auto-geo/prompts.txt — see auto-geo prompts)",
           },
         ],
       },
@@ -516,6 +590,11 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
             description: "Also write the full JSON report to this path",
           },
           {
+            flag: "--no-save",
+            description:
+              "Skip saving the run to .auto-geo/checks/ (saved by default when a workspace exists; auto-geo history reads these)",
+          },
+          {
             flag: "--no-color",
             description: "Disable ANSI colors and box-drawing glyphs",
           },
@@ -537,6 +616,11 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       { label: "xai/grok", envVar: "XAI_API_KEY" },
     ],
     examples: [
+      {
+        comment:
+          "Run the tracked prompts (domain from config, saved to history)",
+        lines: ["auto-geo check"],
+      },
       {
         comment: "Single query against the default engine (Perplexity)",
         lines: ['auto-geo check --domain shadow.inc --query "what is GEO"'],
@@ -560,6 +644,47 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "Exit code: 0 if coverage > 0%, 1 if 0%, 2 if --max-runtime tripped.",
     docsUrl:
       "https://github.com/shadowresearch/auto-geo/blob/main/docs/check.md",
+  },
+  history: {
+    command: "history",
+    tagline: "citation coverage over time",
+    usage: ["auto-geo history [options]"],
+    sections: [
+      {
+        heading: "Options",
+        items: [
+          {
+            flag: "--engine <name>",
+            description:
+              "Only runs for this engine selector (perplexity, openai, …, all)",
+          },
+          {
+            flag: "--limit N",
+            description: "Most recent runs to show (default 15)",
+          },
+          { flag: "--json", description: "Machine-readable rows + delta" },
+          { flag: "--no-color", description: "Disable ANSI colors" },
+          {
+            flag: "--narrow",
+            description: "Tighten layout for narrow terminals",
+          },
+        ],
+      },
+    ],
+    examples: [
+      {
+        comment: "Run-by-run coverage with trends and the latest delta",
+        lines: ["auto-geo history"],
+      },
+      {
+        comment: "Only multi-engine (--engine all) runs",
+        lines: ["auto-geo history --engine all"],
+      },
+    ],
+    note: "Reads the runs `auto-geo check` saves to .auto-geo/checks/. Trends compare like with like — each run is measured against the previous run of the same engine selector.",
+    exitCode: "Exit code: 0 on success, 1 on failure.",
+    docsUrl:
+      "https://github.com/shadowresearch/auto-geo/blob/main/docs/history.md",
   },
 };
 
@@ -821,12 +946,11 @@ export function renderGlobalHelp(opts: HelpRenderOptions): string {
     for (const ln of rendered) lines.push(ln);
   }
   lines.push("");
-  // Four-pillar workflow hint — the CLI as the foundational pillar of
-  // GEO infra. `init` is the on-ramp; the four pillars are run in
-  // order. New in v0.6.0.
+  // Workflow hint — the engine loop. `init` is the on-ramp; the
+  // pillars run in order and `history` closes the loop.
   lines.push(
     `${id}${bold("First run?", ui.colors)}  auto-geo init  ${dim(
-      "(then doctor \u2192 write \u2192 fix \u2192 check)",
+      "(then doctor \u2192 write \u2192 fix \u2192 check \u2192 history)",
       ui.colors
     )}`
   );
@@ -835,14 +959,10 @@ export function renderGlobalHelp(opts: HelpRenderOptions): string {
     `${id}${dim("Run a command with --help to see its flags:", ui.colors)}`
   );
   lines.push(`${id}  auto-geo init --help`);
-  lines.push(`${id}  auto-geo doctor --help`);
+  lines.push(`${id}  auto-geo check --help`);
   lines.push("");
-  // Trailer links — kv-style, aligned by colon. `Library` points users
-  // who want the programmatic API (adapters, schema, store) at the
-  // deeper-integration section of the README; the CLI is the primary
-  // surface, the library is a deeper-cut second.
+  // Trailer links — kv-style, aligned by colon.
   const links: Array<[string, string]> = [
-    ["Library", `${REPO_URL}#library-usage`],
     ["Docs", REPO_URL],
     ["npm", NPM_URL],
     ["By", `Shadow (${SHADOW_URL})`],

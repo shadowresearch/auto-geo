@@ -1,12 +1,12 @@
 # Validation reference
 
-`auto-geo` enforces two layers of validation: **hard rejects** at the schema boundary (HTTP 400) and **soft warnings** in the success response (HTTP 200 with `warnings[]`).
+`auto-geo` enforces two layers of validation: **hard rejects** at the schema boundary and **soft quality heuristics** audited by `auto-geo doctor`.
 
 The split is deliberate: structure is a contract; quality is a continuum.
 
-## Hard rejects (HTTP 400)
+## Hard rejects
 
-Hard rejects come from `core/schema.ts` (Zod). Every constraint listed below returns 400 with a `{ error, issues: [{ path, message }] }` body.
+Hard rejects come from the resource schema (`cli/schema.ts`, Zod). When `auto-geo write` or `auto-geo fix` generates a payload that violates a constraint below, the payload is rejected with a `{ path, message }` issue list and regenerated via the bounded self-correction retry loop (`--max-retries`, default 3).
 
 ### Identity
 
@@ -85,13 +85,9 @@ The following phrases are rejected when they appear _outside_ a quoted passage A
 
 See SOP §5h for the rationale (measured citation penalty).
 
-### Reserved slugs (HTTP 409)
+## Soft quality heuristics
 
-Slugs in `reservedSlugs` (configured per deployment) collide with statically routed pages in the host app. Publishing them returns 409.
-
-## Soft warnings (HTTP 200, `warnings[]`)
-
-Soft warnings come from `core/validation.ts` (`auditResource`). They surface SOP heuristics that are too noisy to enforce as hard errors but worth flagging for an iterating agent.
+Soft heuristics surface SOP guidance that is too noisy to enforce as hard errors. They never block generation; `auto-geo doctor` audits live pages against the same signals (entity density, question-format H2s, image cadence, answer-first ledes) and ranks the fixes by citation lift.
 
 ### Per-section
 
@@ -117,11 +113,10 @@ Soft warnings come from `core/validation.ts` (`auditResource`). They surface SOP
 | `imageCadence`           | Images below `floor(total / 500)`            | §7b |
 | `relatedGuides.items[N]` | Self-link in Related Guides                  | §5d |
 
-### Acting on warnings
+### Acting on heuristics
 
-The publish endpoint always returns 200 with warnings — they never block publication. The calling agent can:
+Heuristics never block a `write`/`fix` run. The loop:
 
-1. **Ship as-is.** Surface warnings to the user; treat the page as published. Appropriate when warnings are low-severity or the agent has reason to override (e.g., a short listicle that legitimately has fewer lists than the threshold).
-2. **Iterate.** Modify the payload to address the warnings and re-POST. The publish endpoint is idempotent on slug — republishing overwrites.
-
-The MCP server forwards the full warnings array back to the calling AI client, which can drive the iteration loop autonomously.
+1. **Ship as-is.** Appropriate when the flags are low-severity or you have reason to override (e.g., a short listicle that legitimately has fewer lists than the threshold).
+2. **Iterate.** Publish the page, run `auto-geo doctor <url>`, and address the ranked fixes. Re-run until the score clears your CI gate (default 75%).
+3. **Verify.** `auto-geo check` measures whether the improved page actually earns citations; `auto-geo history` shows the trend.

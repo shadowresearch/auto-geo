@@ -1,6 +1,6 @@
 # Contributing to auto-geo
 
-Thanks for your interest in contributing. `auto-geo` is built by [Shadow](https://www.shadow.inc) and maintained as a public good for the GEO community. We welcome bug reports, schema improvements, new storage adapters, additional HTTP adapters, framework integrations, and documentation refinements.
+Thanks for your interest in contributing. `auto-geo` is built by [Shadow](https://www.shadow.inc) and maintained as a public good for the GEO community. We welcome bug reports, doctor-check improvements, new check engines, schema rationale challenges (with data), and documentation refinements.
 
 ## Code of Conduct
 
@@ -9,15 +9,20 @@ Participation in this project is governed by our [Code of Conduct](./CODE_OF_CON
 ## Project layout
 
 ```
-core/                 Framework-agnostic schema, publish/delete pipelines,
-                      validation heuristics, JSON-LD derivation. Zero deps.
-adapters/storage/     ContentStore implementations (KV, Supabase, memory).
-                      memory.ts is the reference — start there.
-adapters/http/        HTTP adapters wrapping runPublish (Next.js, Hono).
-components/react/     Reference Tailwind renderer with pluggable LinkComponent.
-mcp/                  MCP server exposing publish as a tool for AI clients.
-examples/             Working integrations. next-minimal is the canonical one.
-docs/                 The substantive product: SOP, architecture, validation.
+cli/                  The entire product — one module per command plus shared
+                      infrastructure:
+  run.ts                argument parsing + dispatch (start here)
+  schema.ts             the GEO resource schema (Zod) — the contract
+  doctor.ts/checks.ts   citation-readiness audit + the 8 checks
+  write.ts/fix.ts/llm.ts  LLM generation against the schema
+  check.ts              citation-coverage orchestrator
+  engines/              one adapter per AI search engine
+  workspace.ts          .auto-geo/ — tracked prompts + check history
+  prompts.ts/history.ts the workspace commands
+  init.ts/config.ts/env.ts  first-run setup, config file, .env loading
+  ui.ts/help.ts/render.ts   presentation layer
+docs/                 The substantive product: SOP, architecture, validation,
+                      per-command references.
 tests/                Vitest suite. tests/fixtures/payload.ts is the canonical
                       valid payload variants spread from.
 ```
@@ -31,37 +36,36 @@ pnpm install
 pnpm test          # run the Vitest suite
 pnpm typecheck     # tsc --noEmit
 pnpm lint
-```
-
-The example app:
-
-```bash
-cd examples/next-minimal
-cp .env.example .env.local
-pnpm dev
+pnpm build         # tsup → dist/cli/bin.js
+node dist/cli/bin.js --help
 ```
 
 ## What we accept
 
 - **Bug fixes** to existing behavior, with a regression test.
-- **New storage adapters** that implement `ContentStore` from `core/store.ts` and ship with unit tests. Use [`adapters/storage/memory.ts`](./adapters/storage/memory.ts) as the reference — it's the smallest complete implementation of the interface and the patterns there (seed support, in-memory map, sort by `publishedAt`, `limit`/`offset` slicing) apply to every backend.
-- **New HTTP adapters** (Express, Fastify, Elysia, etc.) that wrap `core/publish.ts`'s `runPublish`/`runDelete` and follow the same status-code conventions as [`adapters/http/next.ts`](./adapters/http/next.ts) — `validation_failed → 400`, `slug_reserved → 409`, `store_failed → 502`, `ok → 200`. Mirror the auth and revalidation flow from the Next.js adapter.
-- **Renderer improvements** that keep the seven-block architecture intact.
+- **New check engines** (an AI search engine with a citations API) — follow the adapter pattern in [`cli/engines/`](./cli/engines); each adapter takes an injectable `fetch` so tests run with zero network.
+- **Doctor check improvements** — better heuristics for existing checks, with the SOP rationale documented.
+- **DX improvements** — better error messages, output rendering, flag ergonomics. The CLI is the product; polish counts.
 - **Documentation** — typos, clarifications, additional examples, translation of the SOP.
 - **Test coverage improvements** on existing code.
 
 ## What we generally do not accept
 
-- **Loosening the schema constraints in `core/schema.ts`.** The word counts, block constraints, and banned-superlative list are calibrated to the SOP. If you have evidence a constraint is wrong, open an issue with data — don't open a PR that flips the constraint.
+- **Loosening the schema constraints in `cli/schema.ts`.** The word counts, block constraints, and banned-superlative list are calibrated to the SOP. If you have evidence a constraint is wrong, open an issue with data — don't open a PR that flips the constraint.
 - **Adding markdown parsing.** Inline syntax is intentionally limited to `**bold**`, `*italic*`, `[label](url)`. The rigid contract is the product.
-- **Breaking changes to the `ContentStore` interface.** It is a public API; the bar for changing it is a deprecation cycle.
+- **New runtime dependencies.** The CLI is deliberately lean (`ai` + provider SDKs, `zod`, `linkedom`). UI is hand-rolled ANSI; argument parsing is hand-rolled. A new dependency needs a strong case.
 - **Adding new mandatory page-architecture blocks.** Optional fields can be discussed; mandatory additions break every existing payload.
+- **Re-adding a library surface.** v0.7.0 deliberately cut the package to CLI-only. Programmatic consumers should shell out to the CLI's `--json` / `--ndjson` modes.
 
 ## Schema changes
 
-The schema (`core/schema.ts`) and validation heuristics (`core/validation.ts`) are tied to the GEO SOP in `docs/sop.md`. PRs that touch the schema must also update the SOP doc with the rationale for the change. PRs that touch validation thresholds must explain the empirical basis in the doc.
+The schema (`cli/schema.ts`) and the doctor heuristics (`cli/checks.ts`) are tied to the GEO SOP in `docs/sop.md`. PRs that touch the schema must also update the SOP doc with the rationale for the change. PRs that touch heuristic thresholds must explain the empirical basis in the doc.
 
-A schema change is a semver-major event if it tightens a constraint (existing payloads start failing). Loosening a constraint is semver-minor. Adding optional fields is semver-minor.
+A schema change is a breaking event if it tightens a constraint (existing payloads start failing) — major post-1.0, minor pre-1.0. Loosening a constraint or adding optional fields is minor.
+
+## Output-shape stability
+
+The `--json` and `--ndjson` output shapes are public API. Fields are **additive only** — never rename or remove a field without a deprecation note in the CHANGELOG. The saved check-run envelope in `.auto-geo/checks/` follows the same rule (history must keep reading old files).
 
 ## Development conventions
 
@@ -74,12 +78,12 @@ Every PR that touches code must include or update Vitest tests. Coverage thresho
 We use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages:
 
 ```
-feat(schema): allow optional H4 block type
-fix(jsonld): escape U+2028 in safeJsonLd
+feat(check): add brave engine adapter
+fix(doctor): handle pages with no h2 elements
 docs(sop): clarify entity density rationale
-refactor(publish): extract validation into runValidation
-chore(deps): bump zod to 3.24
-test(memory-store): cover limit/offset edge cases
+refactor(run): extract config merge helpers
+chore(deps): bump ai sdk
+test(history): cover engine-filtered trends
 ```
 
 The first line is ≤72 characters. The body, if any, explains _why_, not what.
@@ -104,8 +108,8 @@ Before opening a PR:
 - [ ] `pnpm typecheck` passes.
 - [ ] `pnpm lint` passes with zero warnings.
 - [ ] `pnpm format:check` passes.
-- [ ] If schema or validation changed: `docs/sop.md` updated with rationale.
-- [ ] If a new storage or HTTP adapter: it follows the existing adapter's structure and includes tests.
+- [ ] If schema or doctor heuristics changed: `docs/sop.md` updated with rationale.
+- [ ] If `--json`/`--ndjson` output changed: fields are additive only and the CHANGELOG notes them.
 - [ ] `CHANGELOG.md` updated under the `## [Unreleased]` heading.
 - [ ] Commit messages follow Conventional Commits.
 
@@ -113,10 +117,10 @@ Before opening a PR:
 
 Use the [bug report template](./.github/ISSUE_TEMPLATE/bug_report.yml). Include:
 
-- The version of `auto-geo` you're running.
-- A minimal reproduction (a payload that should pass but doesn't, or vice versa).
+- The version of `auto-geo` you're running (`auto-geo --version`).
+- The exact command and flags, with `--json` output where applicable.
 - The expected vs. actual behavior.
-- Node.js version and runtime (Node, Bun, Vercel Functions, etc.).
+- Node.js version and OS.
 
 ## Requesting features
 
@@ -124,7 +128,7 @@ Use the [feature request template](./.github/ISSUE_TEMPLATE/feature_request.yml)
 
 - The problem you're solving (not the feature you want, the underlying need).
 - What you've tried that doesn't work today.
-- How you'd expect the feature to integrate with the existing schema / publish / render pipeline.
+- How you'd expect the feature to fit the workflow (init → doctor → write → fix → check → history).
 
 Feature requests that are mostly preference ("I'd prefer if X was named Y") are unlikely to land.
 
