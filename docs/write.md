@@ -1,9 +1,16 @@
+---
+title: "write"
+parent: "Commands"
+nav_order: 3
+description: "auto-geo write — generate publish-ready GEO resource pages from target queries."
+---
+
 # auto-geo write
 
 Generate publish-ready GEO resource pages from a set of target queries — the questions you want your domain to be cited for inside ChatGPT, Perplexity, Claude, Gemini, and Google AI Overviews.
 
 ```bash
-npx auto-geo write \
+auto-geo write \
   --domain https://www.shadow.inc \
   --query "what is GEO" \
   --query "GEO vs SEO" \
@@ -21,10 +28,10 @@ Each query produces one JSON file in `<out>/<slug>.json`, validated against the 
 
 ## Install + auth
 
-The CLI ships with `auto-geo`. The AI SDK and provider packages are installed alongside as runtime dependencies, so a fresh `npx auto-geo` invocation already has everything it needs.
+The CLI ships with `auto-geo` (`npm i -g auto-geo`). The AI SDK and provider packages are installed alongside as runtime dependencies, so a fresh install already has everything it needs.
 
 ```bash
-npx auto-geo write --help
+auto-geo write --help
 ```
 
 Set the API key for the provider you choose:
@@ -153,5 +160,5 @@ The same `runWrite` powers the CLI; it's a single function call so you can wire 
 Once you've published the JSON, point `auto-geo doctor` at the live URL to confirm the page renders with the expected citation signals:
 
 ```bash
-npx auto-geo doctor https://www.shadow.inc/resources/geo
+auto-geo doctor https://www.shadow.inc/resources/geo
 ```

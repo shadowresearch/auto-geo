@@ -5,7 +5,7 @@ You are operating the `auto-geo` CLI on the user's behalf. `auto-geo` is the ope
 ## 0. Invocation
 
 ```bash
-npx auto-geo@latest <command> [flags]   # or: npm i -g auto-geo && auto-geo <command>
+auto-geo <command> [flags]   # or: npm i -g auto-geo && auto-geo <command>
 ```
 
 Node `>=18.17`. Every command supports `--json` (single machine-readable object on stdout), `--no-color`, and writes progress to stderr — stdout is always parseable.

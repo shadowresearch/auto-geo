@@ -23,7 +23,11 @@ auto-geo check     # measure: do AI engines actually cite you?
 auto-geo history   # track citation coverage over time
 ```
 
-Everything is file-based and committable — tracked prompts, check history, config. No server, no account, no database. One `npx` away.
+Everything is file-based and committable — tracked prompts, check history, config. No server, no account, no database. One install away:
+
+```bash
+npm i -g auto-geo
+```
 
 > Built by **[Shadow](https://www.shadow.inc)** — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map. Shadow uses `auto-geo` to publish to [shadow.inc/resources](https://www.shadow.inc/resources).
 
@@ -53,25 +57,28 @@ Everything is file-based and committable — tracked prompts, check history, con
 ## Quickstart
 
 ```bash
+# 0. Install once (or run any command one-shot via `npx auto-geo@latest`)
+npm i -g auto-geo
+
 # 1. Set up — config, .env.local key slots, and the .auto-geo workspace
-npx auto-geo@latest init
+auto-geo init
 
 # 2. Add an API key to .env.local (auto-loaded by every command)
 
 # 3. Audit any page — yours or a competitor's
-npx auto-geo doctor https://example.com/some-page
+auto-geo doctor https://example.com/some-page
 
 # 4. Track the prompts you want AI engines to cite you for
-npx auto-geo prompts add "best media monitoring tools" "what is GEO"
+auto-geo prompts add "best media monitoring tools" "what is GEO"
 
 # 5. Measure — every run is saved to history automatically
-npx auto-geo check
+auto-geo check
 
 # 6. Watch coverage move over time
-npx auto-geo history
+auto-geo history
 ```
 
-Prefer a global install: `npm i -g auto-geo`, then drop the `npx`. Node `>=18.17` required.
+Node `>=18.17` required. Upgrading later is `npm i -g auto-geo@latest`.
 
 ---
 
@@ -121,8 +128,8 @@ The pages that win are not blog posts. Empirical research links citation probabi
 ## `auto-geo init` — set up the system
 
 ```bash
-npx auto-geo init        # interactive (a handful of questions)
-npx auto-geo init --yes  # non-interactive template
+auto-geo init        # interactive (a handful of questions)
+auto-geo init --yes  # non-interactive template
 ```
 
 One command scaffolds everything:
@@ -143,7 +150,7 @@ The interactive flow ends by asking for the prompts you want to track, so a fres
 Run it on any URL — yours, a competitor's, every page in your sitemap — and get a structured report on the citation signals AI engines look for.
 
 ```bash
-npx auto-geo doctor https://example.com/some-page
+auto-geo doctor https://example.com/some-page
 ```
 
 ```text
@@ -166,10 +173,10 @@ Top 3 fixes (ranked by citation lift):
 
 ```bash
 # Whole sitemap — mean score, lowest-scoring pages, most common failures
-npx auto-geo doctor --site https://example.com/sitemap.xml --max-pages 50
+auto-geo doctor --site https://example.com/sitemap.xml --max-pages 50
 
 # JSON for CI / dashboards
-npx auto-geo doctor https://example.com/page --json
+auto-geo doctor https://example.com/page --json
 ```
 
 Exit code `0` if score ≥ 75%, `1` otherwise — gate deploys on it. See [`docs/doctor.md`](./docs/doctor.md) for the full check reference.
@@ -181,7 +188,7 @@ Exit code `0` if score ≥ 75%, `1` otherwise — gate deploys on it. See [`docs
 Give it your domain and the queries you want to be cited for; get back validated, publish-ready JSON files — one structured page per query, conforming to the full GEO architecture.
 
 ```bash
-npx auto-geo write \
+auto-geo write \
   --query "what is GEO" \
   --query "GEO vs SEO" \
   --out ./resources
@@ -198,10 +205,10 @@ The system prompt encodes the [GEO SOP](./docs/sop.md) — TL;DR length, answer-
 
 ```bash
 # Dry-run — plan + cost estimate, no LLM calls
-npx auto-geo write --query "what is X" --dry-run
+auto-geo write --query "what is X" --dry-run
 
 # Batch from a file, anthropic, 4 pages at a time
-npx auto-geo write --queries-file queries.txt --provider anthropic --concurrency 4
+auto-geo write --queries-file queries.txt --provider anthropic --concurrency 4
 ```
 
 With a config file (`auto-geo init`), `--domain`, author fields, and provider come from config — a bare `--query` is all you need. See [`docs/write.md`](./docs/write.md).
@@ -213,7 +220,7 @@ With a config file (`auto-geo init`), `--domain`, author fields, and provider co
 Where `doctor` tells you what's wrong, `fix` produces a GEO-optimized rewrite that passes all 8 checks — fetched, audited, regenerated, and validated against the same schema `write` uses.
 
 ```bash
-npx auto-geo fix https://www.example.com/some-blog-post --out ./fixed.json
+auto-geo fix https://www.example.com/some-blog-post --out ./fixed.json
 ```
 
 ```text
@@ -224,8 +231,8 @@ Score (projected): 8 / 8 — strong GEO posture
 ```
 
 ```bash
-npx auto-geo fix https://example.com/page --provider anthropic   # Claude instead
-npx auto-geo fix https://example.com/page --dry-run              # audit + cost estimate only
+auto-geo fix https://example.com/page --provider anthropic   # Claude instead
+auto-geo fix https://example.com/page --dry-run              # audit + cost estimate only
 ```
 
 See [`docs/fix.md`](./docs/fix.md).
@@ -237,16 +244,16 @@ See [`docs/fix.md`](./docs/fix.md).
 Your tracked prompts are the questions you want AI engines to answer by citing your domain. They live in `.auto-geo/prompts.txt` (plain text, committable) and they're what `check` runs by default.
 
 ```bash
-npx auto-geo prompts add "best media monitoring tools" "what is GEO"
-npx auto-geo prompts            # numbered list
-npx auto-geo prompts rm 2       # by index — or by exact text
+auto-geo prompts add "best media monitoring tools" "what is GEO"
+auto-geo prompts            # numbered list
+auto-geo prompts rm 2       # by index — or by exact text
 ```
 
 Don't know what to track? **Let the engine propose your prompt set** — `discover` fetches your homepage, looks at what you already track, and has the LLM generate the high-intent queries you should compete for:
 
 ```bash
-npx auto-geo prompts discover --dry-run    # preview the proposals
-npx auto-geo prompts discover --count 15   # append 15 (never overwrites, never duplicates)
+auto-geo prompts discover --dry-run    # preview the proposals
+auto-geo prompts discover --count 15   # append 15 (never overwrites, never duplicates)
 ```
 
 `prompts add` (and `discover`) bootstrap the workspace on first use, so you don't even need `init` to start tracking.
@@ -258,7 +265,7 @@ npx auto-geo prompts discover --count 15   # append 15 (never overwrites, never 
 For each prompt, ask a real AI search engine and report whether your domain is among the citations. This is the ground truth `doctor` predicts.
 
 ```bash
-npx auto-geo check        # tracked prompts, domain from config
+auto-geo check        # tracked prompts, domain from config
 ```
 
 ```text
@@ -275,16 +282,16 @@ Engines: **perplexity** (default), **openai**, **anthropic**, **gemini**, **xai*
 
 ```bash
 # Explicit queries instead of the tracked set
-npx auto-geo check --domain shadow.inc --query "what is GEO"
+auto-geo check --domain shadow.inc --query "what is GEO"
 
 # Every engine you have keys for, union coverage
-npx auto-geo check --engine all
+auto-geo check --engine all
 
 # CI: fail the deploy when critical queries don't cite you
-npx auto-geo check --queries-file geo/critical-queries.txt && deploy
+auto-geo check --queries-file geo/critical-queries.txt && deploy
 
 # Streaming JSON for agents / dashboards
-npx auto-geo check --ndjson
+auto-geo check --ndjson
 ```
 
 Every run is saved to `.auto-geo/checks/` automatically (opt out with `--no-save`). Exit code `0` if coverage > 0%, `1` if 0%. See [`docs/check.md`](./docs/check.md) for output shapes, fan-out-query capture, domain-matching rules, and the `--format geo-audit` interop mode.
@@ -296,7 +303,7 @@ Every run is saved to `.auto-geo/checks/` automatically (opt out with `--no-save
 The payoff for saving every run: a trend line. Run-by-run coverage with per-engine deltas, plus exactly which prompts you started or stopped being cited for.
 
 ```bash
-npx auto-geo history
+auto-geo history
 ```
 
 ```text
@@ -381,7 +388,7 @@ Every command is built to be driven by an agent as much as by a human:
 - `--no-color` / `NO_COLOR` / non-TTY detection for log-friendly output.
 
 ```bash
-npx auto-geo check --ndjson | jq 'select(.cited) | .query'
+auto-geo check --ndjson | jq 'select(.cited) | .query'
 ```
 
 ---

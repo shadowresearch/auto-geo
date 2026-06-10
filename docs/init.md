@@ -1,10 +1,17 @@
+---
+title: "init"
+parent: "Commands"
+nav_order: 1
+description: "auto-geo init — one-shot setup: config, .env.local, and the .auto-geo workspace."
+---
+
 # auto-geo init
 
 One-shot setup for the full auto-geo system. Run it once at your project root; every other command picks up what it writes.
 
 ```bash
-npx auto-geo init        # interactive — a handful of questions
-npx auto-geo init --yes  # non-interactive template (CI / scripted onboarding)
+auto-geo init        # interactive — a handful of questions
+auto-geo init --yes  # non-interactive template (CI / scripted onboarding)
 ```
 
 ## What it writes
@@ -59,8 +66,8 @@ Everywhere in the CLI, values resolve highest-first:
 $EDITOR .env.local
 
 # 2. Audit a page
-npx auto-geo doctor https://example.com/some-page
+auto-geo doctor https://example.com/some-page
 
 # 3. Measure your tracked prompts
-npx auto-geo check
+auto-geo check
 ```

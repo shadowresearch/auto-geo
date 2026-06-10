@@ -1,9 +1,16 @@
+---
+title: "history"
+parent: "Commands"
+nav_order: 7
+description: "auto-geo history — citation coverage over time, with per-engine trends and deltas."
+---
+
 # auto-geo history
 
 Citation coverage over time. [`auto-geo check`](./check.md) saves every run to `.auto-geo/checks/`; `history` reads those files and renders the trend — run-by-run coverage with per-engine deltas, plus exactly which prompts you started or stopped being cited for.
 
 ```bash
-npx auto-geo history
+auto-geo history
 ```
 
 ```text
@@ -44,7 +51,7 @@ Skip saving a throwaway run with `check --no-save`.
 ## JSON shape
 
 ```bash
-npx auto-geo history --json
+auto-geo history --json
 ```
 
 ```jsonc

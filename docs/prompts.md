@@ -1,12 +1,19 @@
+---
+title: "prompts"
+parent: "Commands"
+nav_order: 5
+description: "auto-geo prompts — manage and discover the tracked prompts check runs by default."
+---
+
 # auto-geo prompts
 
 Manage your **tracked prompts** — the questions you want AI engines to answer by citing your domain. The tracked set is what [`auto-geo check`](./check.md) runs when invoked without `--query` / `--queries-file`, and what [`auto-geo history`](./history.md) trends over time.
 
 ```bash
-npx auto-geo prompts add "best media monitoring tools" "what is GEO"
-npx auto-geo prompts            # numbered list (same as `prompts list`)
-npx auto-geo prompts rm 2       # remove by index — or by exact text
-npx auto-geo prompts discover   # LLM proposes new prompts for your domain
+auto-geo prompts add "best media monitoring tools" "what is GEO"
+auto-geo prompts            # numbered list (same as `prompts list`)
+auto-geo prompts rm 2       # remove by index — or by exact text
+auto-geo prompts discover   # LLM proposes new prompts for your domain
 ```
 
 ## Where prompts live
@@ -35,8 +42,8 @@ You can edit the file by hand; the CLI and the file are equivalent interfaces.
 The hard part of a GEO program is knowing _which_ questions to compete for. `discover` proposes them: it fetches your homepage for grounding, shows the model what you already track, and asks for N new high-intent queries a target customer would put to an AI engine — queries your domain should be the cited answer for.
 
 ```bash
-npx auto-geo prompts discover --dry-run    # preview without writing
-npx auto-geo prompts discover --count 15   # propose and track 15
+auto-geo prompts discover --dry-run    # preview without writing
+auto-geo prompts discover --count 15   # propose and track 15
 ```
 
 Guarantees (same contract as `prompts add`):
@@ -62,7 +69,7 @@ Requires an `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (auto-loaded from `.env.loca
 ## The loop
 
 ```bash
-npx auto-geo prompts add "the query you want to win"
-npx auto-geo check                 # measures every tracked prompt, saves the run
-npx auto-geo history               # which prompts you gained / lost since last run
+auto-geo prompts add "the query you want to win"
+auto-geo check                 # measures every tracked prompt, saves the run
+auto-geo history               # which prompts you gained / lost since last run
 ```

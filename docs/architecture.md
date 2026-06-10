@@ -1,3 +1,10 @@
+---
+title: "Page architecture"
+parent: "Reference"
+nav_order: 3
+description: "The seven mandatory blocks of a GEO resource page, in order, with the inline-syntax spec."
+---
+
 # Page architecture
 
 A GEO resource page is composed of seven blocks, in fixed order:

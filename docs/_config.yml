@@ -1,29 +1,60 @@
 # Jekyll configuration for the auto-geo docs site on GitHub Pages.
 #
-# Served from the `docs/` directory on the `main` branch. Toggle Pages on
-# in repo Settings → Pages → Source: "Deploy from a branch" → Branch: main
-# → Folder: /docs.
+# Served from the `docs/` directory on the `main` branch (Settings →
+# Pages → Source: "Deploy from a branch" → main → /docs).
 #
-# Theme: jekyll-theme-cayman (one of GitHub's supported themes). It gives
-# us a clean header, sensible defaults, and works without a custom
-# workflow. Per-page customizations (LLM-friendly head links, JSON-LD,
-# "Built with auto-geo" footer) live in `docs/_includes/` and are merged
-# in via the standard theme hooks.
+# Theme: just-the-docs via remote_theme — the standard Jekyll
+# documentation theme (sidebar navigation, built-in search, clean
+# typography), GitHub Pages compatible with zero build pipeline.
+# Per-page customizations (LLM-friendly head links, JSON-LD) live in
+# `docs/_includes/head_custom.html`, the theme's supported hook.
 
 title: auto-geo
 description: >-
-  Publishing engine for GEO (Generative Engine Optimization) resource pages
-  — the pages large language models cite. Open-source (MIT), built by Shadow.
+  The open-source GEO (Generative Engine Optimization) engine — a CLI that
+  audits, generates, fixes, and tracks the pages large language models cite.
+  Open-source (MIT), built by Shadow.
 url: https://shadowresearch.github.io
 baseurl: /auto-geo
 
 repository: shadowresearch/auto-geo
 
-# GitHub Pages supported themes:
-# https://pages.github.com/themes/
-theme: jekyll-theme-cayman
+remote_theme: just-the-docs/just-the-docs
 
-# Site-wide author for JSON-LD.
+# ── just-the-docs ──────────────────────────────────────────────────
+
+color_scheme: light
+search_enabled: true
+search:
+  heading_level: 3
+  previews: 3
+  preview_words_before: 5
+  preview_words_after: 10
+  rel_url: true
+  button: false
+
+heading_anchors: true
+back_to_top: true
+back_to_top_text: "Back to top"
+
+aux_links:
+  GitHub: https://github.com/shadowresearch/auto-geo
+  npm: https://www.npmjs.com/package/auto-geo
+aux_links_new_tab: true
+
+nav_external_links:
+  - title: Shadow
+    url: https://www.shadow.inc
+
+footer_content: >-
+  Copyright &copy; Shadow (<a href="https://www.shadow.inc">shadow.inc</a>).
+  Distributed under the
+  <a href="https://github.com/shadowresearch/auto-geo/blob/main/LICENSE">MIT license</a>.
+  This site is LLM-friendly:
+  <a href="/auto-geo/llms.txt">llms.txt</a> &middot;
+  <a href="/auto-geo/llms-full.txt">llms-full.txt</a>.
+
+# Site-wide author for JSON-LD (see _includes/head_custom.html).
 author:
   name: Shadow
   url: https://www.shadow.inc
@@ -34,14 +65,10 @@ llms_full_txt: /auto-geo/llms-full.txt
 npm_url: https://www.npmjs.com/package/auto-geo
 repo_url: https://github.com/shadowresearch/auto-geo
 
-# Jekyll defaults to building everything under `docs/`. Skip example
-# code, the README in subfolders, and anything that isn't actually a
-# docs page.
 exclude:
   - README.md
   - "*.sql"
 
-# Markdown processor.
 markdown: kramdown
 kramdown:
   input: GFM
@@ -52,8 +79,8 @@ kramdown:
 # the same files are also served as Pages.
 permalink: /:basename
 
-# Pages plugins allowlist.
 plugins:
+  - jekyll-remote-theme
   - jekyll-seo-tag
   - jekyll-sitemap
   - jekyll-relative-links

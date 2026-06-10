@@ -1,0 +1,45 @@
+{%- comment -%}
+  LLM-friendly discovery: advertise llms.txt and llms-full.txt on every
+  page. Following the convention at https://llmstxt.org.
+{%- endcomment -%}
+<link
+  rel="alternate"
+  type="text/plain"
+  href="{{ site.llms_txt | default: '/llms.txt' | relative_url }}"
+  title="llms.txt — curated index for LLM crawlers"
+/>
+<link
+  rel="alternate"
+  type="text/plain"
+  href="{{ site.llms_full_txt | default: '/llms-full.txt' | relative_url }}"
+  title="llms-full.txt — full LLM-ingestible bundle"
+/>
+{%- comment -%}
+  JSON-LD Article markup. Eat-our-own-dogfood: auto-geo's generated
+  payloads map onto this shape mechanically; here we hand-roll it
+  because the docs site is plain Jekyll, not an auto-geo page.
+{%- endcomment -%}
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": {{ page.title | default: site.title | jsonify }},
+    "description": {{ page.description | default: site.description | jsonify }},
+    "author": {
+      "@type": "Organization",
+      "name": {{ site.author.name | default: 'Shadow' | jsonify }},
+      "url": {{ site.author.url | default: 'https://www.shadow.inc' | jsonify }}
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": {{ site.author.name | default: 'Shadow' | jsonify }},
+      "url": {{ site.author.url | default: 'https://www.shadow.inc' | jsonify }}
+    },
+    "url": {{ page.url | absolute_url | jsonify }},
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": {{ site.title | default: 'auto-geo' | jsonify }},
+      "url": {{ '/' | absolute_url | jsonify }}
+    }
+  }
+</script>

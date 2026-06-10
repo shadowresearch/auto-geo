@@ -1,3 +1,10 @@
+---
+title: "GEO SOP"
+parent: "Reference"
+nav_order: 2
+description: "The standard operating procedure behind every constraint the auto-geo schema enforces."
+---
+
 # The GEO SOP
 
 The standard operating procedure for generative engine optimization resource pages.
