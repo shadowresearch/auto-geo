@@ -8,6 +8,26 @@ The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.t
 
 ## [Unreleased]
 
+## [0.6.3] — 2026-06-09
+
+### Added
+
+- **Auto-load `.env.local` / `.env` from cwd.** Closes the loop on v0.6.0's `auto-geo init`: that command scaffolds a `.env.local`, but before v0.6.3 the CLI read keys from `process.env` only. Users had to `set -a; source .env.local; set +a` themselves (or run via `dotenv-cli`) before `auto-geo write` would see their keys. Now every command runs the env loader at startup — `auto-geo init` + fill in keys + `auto-geo write` "just works".
+  - Lookup walks up from cwd (same pattern as `loadConfig`) — monorepo subdirs inherit a workspace-root `.env`.
+  - Each filename has its own walk. `.env.local` and `.env` are both supported; `.env.local` takes precedence on key conflicts (loaded first, never overwritten).
+  - **Process env always wins.** Existing `process.env` keys are never overwritten — production / CI env vars stay authoritative, matching the rest of the CLI's `CLI flag > env > config > default` precedence.
+  - Parser is minimal but conventional: `KEY=value`, `KEY="value"`, `KEY='value'`, `export KEY=value`, `#` comments (line and trailing-on-unquoted), values may contain `=`.
+- **`auto-geo init` next-steps copy** updated to mention the new auto-load behavior so first-run users know they don't need to source the file themselves.
+
+### Test coverage
+
+- 530 → 548 tests (+18): parser unit tests for every supported syntax, loader integration tests for walk-up, precedence (file vs file, process env vs file), and an end-to-end mixed-syntax file.
+
+### Notes
+
+- No new dependencies. The parser is ~30 lines; we deliberately don't pull in `dotenv` to keep the CLI binary small.
+- No new flags. The behavior is on by default — to opt out, run from a directory without an `.env.local` / `.env`, or explicitly export your env elsewhere (process env wins).
+
 ## [0.6.2] — 2026-06-07
 
 ### Changed

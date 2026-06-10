@@ -275,7 +275,7 @@ export function renderInitOutcome(
   lines.push("");
   lines.push(bold("Next:", colors));
   lines.push(
-    `  1. Edit ${cyan(".env.local", colors)} and add at least one API key`
+    `  1. Edit ${cyan(".env.local", colors)} and add at least one API key (auto-loaded by every command)`
   );
   lines.push(
     `  2. Add ${cyan(".env.local", colors)} to .gitignore if not already`
