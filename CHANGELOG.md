@@ -8,6 +8,12 @@ The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-06-10
+
+### Changed
+
+- **Outcome-oriented tagline** across README, npm description, docs site, llms.txt, and the GitHub repo description: "The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok."
+
 ## [0.8.1] — 2026-06-10
 
 ### Changed

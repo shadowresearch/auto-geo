@@ -10,7 +10,9 @@
 [![Docs](https://img.shields.io/badge/docs-shadowresearch.github.io%2Fauto--geo-blue)](https://shadowresearch.github.io/auto-geo/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-available-9cf)](./llms.txt)
 
-**The open-source GEO engine — a CLI that audits, generates, fixes, and tracks the pages large language models cite.**
+**The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok.**
+
+Audit, generate, fix, and track the pages large language models cite — one CLI, file-based, MIT.
 
 When someone asks ChatGPT, Perplexity, Claude, Gemini, or Google AI Overviews a question your business should answer, do those engines cite _your_ domain? `auto-geo` is the full loop for making that happen and proving it's happening:
 
