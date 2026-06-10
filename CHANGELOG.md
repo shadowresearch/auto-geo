@@ -8,6 +8,12 @@ The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-06-10
+
+### Fixed
+
+- **Binaries job actually builds.** `bun install` in the release workflow choked on the stale `pnpm-workspace.yaml` still listing the `mcp` and `examples/*` packages removed in v0.7.0. The workspace file is gone (single-package repo); v0.8.3's binaries job failed before compiling, so v0.8.4 is the first release with attached executables.
+
 ## [0.8.3] — 2026-06-10
 
 ### Added
