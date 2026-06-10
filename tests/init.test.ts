@@ -148,6 +148,40 @@ describe("runInit", () => {
     expect(autoGeoConfigSchema.safeParse(cfg).success).toBe(true);
   });
 
+  it("--yes scaffolds the .auto-geo workspace (prompts.txt + checks/)", async () => {
+    const outcome = await runInit({ cwd: root, yes: true });
+    expect(outcome.workspaceCreated).toBe(true);
+    expect(outcome.workspaceDir).toBe(join(root, ".auto-geo"));
+    expect(existsSync(join(root, ".auto-geo", "prompts.txt"))).toBe(true);
+    expect(existsSync(join(root, ".auto-geo", "checks"))).toBe(true);
+    expect(outcome.promptsSeeded).toEqual([]);
+  });
+
+  it("interactive — seeds tracked prompts from the comma-separated answer", async () => {
+    const answers = [
+      "https://www.example.com",
+      "", // basePath default
+      "", // provider default
+      "Jane Doe",
+      "Editor",
+      "A short bio that is at least twenty characters long.",
+      "", // linkedin skipped
+      "best media monitoring tools, what is GEO, ", // tracked prompts
+    ];
+    let i = 0;
+    const outcome = await runInit({
+      cwd: root,
+      prompt: async () => answers[i++] ?? "",
+    });
+    expect(outcome.promptsSeeded).toEqual([
+      "best media monitoring tools",
+      "what is GEO",
+    ]);
+    const body = readFileSync(join(root, ".auto-geo", "prompts.txt"), "utf8");
+    expect(body).toContain("best media monitoring tools");
+    expect(body).toContain("what is GEO");
+  });
+
   it("interactive — empty author bio is skipped (preserves schema validity)", async () => {
     const answers = [
       "https://x.com",
@@ -229,6 +263,9 @@ describe("renderInitOutcome", () => {
         configWritten: true,
         envPath: "/x/.env.local",
         envWritten: true,
+        workspaceDir: "/x/.auto-geo",
+        workspaceCreated: true,
+        promptsSeeded: [],
         refusedExisting: false,
         config: {},
       },
@@ -236,7 +273,27 @@ describe("renderInitOutcome", () => {
     );
     expect(out).toMatch(/wrote auto-geo\.config\.json/);
     expect(out).toMatch(/scaffolded \.env\.local/);
+    expect(out).toMatch(/created \.auto-geo\/ workspace/);
     expect(out).toMatch(/auto-geo doctor/);
-    expect(out).toMatch(/auto-geo write/);
+    expect(out).toMatch(/auto-geo prompts add/);
+  });
+
+  it("points at check (not prompts add) when prompts were seeded", () => {
+    const out = renderInitOutcome(
+      {
+        configPath: "/x/auto-geo.config.json",
+        configWritten: true,
+        envPath: "/x/.env.local",
+        envWritten: true,
+        workspaceDir: "/x/.auto-geo",
+        workspaceCreated: true,
+        promptsSeeded: ["best media monitoring tools", "what is GEO"],
+        refusedExisting: false,
+        config: {},
+      },
+      { colors: false }
+    );
+    expect(out).toMatch(/tracking 2 prompts/);
+    expect(out).toMatch(/auto-geo check/);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resourcePublishSchema, wordCount } from "../core/schema";
+import { resourcePublishSchema, wordCount } from "../cli/schema";
 import { VALID_PAYLOAD } from "./fixtures/payload";
 
 describe("resourcePublishSchema", () => {

@@ -3,15 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: [
-      "node_modules/**",
-      "dist/**",
-      "coverage/**",
-      "examples/**/.next/**",
-      "examples/**/.svelte-kit/**",
-      "examples/**/build/**",
-      "mcp/dist/**",
-    ],
+    ignores: ["node_modules/**", "dist/**", "coverage/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

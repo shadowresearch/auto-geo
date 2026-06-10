@@ -78,21 +78,39 @@ describe("renderGlobalHelp", () => {
     expect(out).toContain("v9.9.9");
   });
 
-  it("lists every subcommand with its one-line summary (including init)", () => {
+  it("lists every subcommand with its one-line summary", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
-    const cmds: CommandName[] = ["init", "doctor", "write", "fix", "check"];
+    const cmds: CommandName[] = [
+      "init",
+      "doctor",
+      "write",
+      "fix",
+      "prompts",
+      "check",
+      "history",
+    ];
     for (const c of cmds) expect(out).toContain(c);
     // Spot-check summaries (no flag-blob).
-    expect(out).toContain("Scaffold auto-geo.config.json");
+    expect(out).toContain("Set up the full system");
     expect(out).toContain("Audit a page for citation readiness");
     expect(out).toContain("Rewrite a page so it passes the doctor checks");
     expect(out).toContain("Generate publish-ready resource pages");
     expect(out).toContain("Measure if AI engines");
+    expect(out).toContain("Manage the tracked prompts");
+    expect(out).toContain("Citation coverage over time");
   });
 
-  it("orders commands in workflow order: init, doctor, write, fix, check", () => {
+  it("orders commands in workflow order: init, doctor, write, fix, prompts, check, history", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
-    const order = ["init", "doctor", "write", "fix", "check"];
+    const order = [
+      "init",
+      "doctor",
+      "write",
+      "fix",
+      "prompts",
+      "check",
+      "history",
+    ];
     let lastIdx = -1;
     for (const cmd of order) {
       const idx = out.indexOf(`  ${cmd}`);
@@ -115,17 +133,17 @@ describe("renderGlobalHelp", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
     expect(out).toContain("--help");
     expect(out).toContain("auto-geo init --help");
-    expect(out).toContain("auto-geo doctor --help");
+    expect(out).toContain("auto-geo check --help");
   });
 
-  it("includes Library / Docs / npm / Shadow attribution links", () => {
+  it("includes Docs / npm / Shadow attribution links", () => {
     const out = renderGlobalHelp({ ...PLAIN, version: "0.4.1" });
-    expect(out).toContain("Library");
-    expect(out).toContain("library-usage");
     expect(out).toContain("github.com/shadowresearch/auto-geo");
     expect(out).toContain("npmjs.com/package/auto-geo");
     expect(out).toContain("Shadow");
     expect(out).toContain("shadow.inc");
+    // v0.7.0: the library surface is gone — no more Library link.
+    expect(out).not.toContain("Library");
   });
 
   it("excludes per-command flags (no flag-blob)", () => {

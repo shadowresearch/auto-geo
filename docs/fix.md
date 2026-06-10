@@ -6,7 +6,7 @@ A built-in CLI for generating a GEO-optimized rewrite of any public webpage. Whe
 npx auto-geo fix https://www.example.com/some-blog-post --out ./fixed.json
 ```
 
-The output is a JSON file that conforms to the canonical [`resourcePublishSchema`](../core/schema.ts). POST it to your `/api/resources/publish` endpoint and the page renders at `/<basepath>/<slug>` with Article, BreadcrumbList, and FAQPage JSON-LD auto-emitted from the structured fields.
+The output is a JSON file that conforms to the canonical [`resourcePublishSchema`](../cli/schema.ts). Publish it through your own pipeline and render at `/<basepath>/<slug>`; the structured fields map directly onto Article, BreadcrumbList, and FAQPage JSON-LD.
 
 ## What it does
 
@@ -146,7 +146,7 @@ The estimate is for budgeting; the actual cost is whatever your provider bills. 
 
 ## Auto-emitted JSON-LD
 
-Two of the doctor checks — `article-jsonld` and `faqpage-jsonld` — pass automatically once the generated payload is published and rendered by the `<ResourceArticle>` React component. `core/jsonld.ts` derives `Article`, `BreadcrumbList`, `FAQPage`, `Person`, and `ImageObject` blocks from the structured fields on the payload; the LLM does not need to generate any JSON-LD itself. The projected-audit lines for those two checks say "auto-emitted by ResourceArticle renderer" to make the contract explicit.
+Two of the doctor checks — `article-jsonld` and `faqpage-jsonld` — are renderer concerns: the structured fields on the payload map directly onto `Article`, `BreadcrumbList`, `FAQPage`, `Person`, and `ImageObject` JSON-LD blocks, so whatever renders the payload should emit them mechanically. The LLM does not need to generate any JSON-LD itself; the projected-audit lines for those two checks call this out explicitly.
 
 ## Programmatic API
 

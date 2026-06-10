@@ -1,7 +1,7 @@
 {
   "name": "auto-geo",
-  "version": "0.6.3",
-  "description": "Publishing engine for GEO resource pages — the pages large language models cite. Built by Shadow, a media research lab building the next generation of AI-powered media intelligence and communications technology.",
+  "version": "0.7.0",
+  "description": "Open-source GEO engine, CLI-first — audit, generate, fix, and track the pages large language models cite. Built by Shadow, a media research lab building the next generation of AI-powered media intelligence and communications technology.",
   "type": "module",
   "license": "MIT",
   "author": "Shadow (https://www.shadow.inc)",
@@ -18,74 +18,15 @@
     "geo",
     "generative-engine-optimization",
     "ai-search",
+    "ai-visibility",
     "aeo",
     "llmo",
+    "cli",
+    "citations",
     "schema-org",
     "structured-content",
-    "publishing",
-    "next.js",
-    "hono",
-    "cloudflare-workers",
-    "mcp",
     "shadow"
   ],
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./schema": {
-      "types": "./dist/schema.d.ts",
-      "import": "./dist/schema.js",
-      "require": "./dist/schema.cjs"
-    },
-    "./validation": {
-      "types": "./dist/validation.d.ts",
-      "import": "./dist/validation.js",
-      "require": "./dist/validation.cjs"
-    },
-    "./jsonld": {
-      "types": "./dist/jsonld.d.ts",
-      "import": "./dist/jsonld.js",
-      "require": "./dist/jsonld.cjs"
-    },
-    "./react": {
-      "types": "./dist/react/index.d.ts",
-      "import": "./dist/react/index.js",
-      "require": "./dist/react/index.cjs"
-    },
-    "./next": {
-      "types": "./dist/next.d.ts",
-      "import": "./dist/next.js",
-      "require": "./dist/next.cjs"
-    },
-    "./hono": {
-      "types": "./dist/hono.d.ts",
-      "import": "./dist/hono.js",
-      "require": "./dist/hono.cjs"
-    },
-    "./cloudflare": {
-      "types": "./dist/cloudflare.d.ts",
-      "import": "./dist/cloudflare.js",
-      "require": "./dist/cloudflare.cjs"
-    },
-    "./storage/kv": {
-      "types": "./dist/storage/kv.d.ts",
-      "import": "./dist/storage/kv.js",
-      "require": "./dist/storage/kv.cjs"
-    },
-    "./storage/supabase": {
-      "types": "./dist/storage/supabase.d.ts",
-      "import": "./dist/storage/supabase.js",
-      "require": "./dist/storage/supabase.cjs"
-    },
-    "./storage/memory": {
-      "types": "./dist/storage/memory.d.ts",
-      "import": "./dist/storage/memory.js",
-      "require": "./dist/storage/memory.cjs"
-    }
-  },
   "files": [
     "dist",
     "docs",
@@ -110,49 +51,19 @@
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.67",
     "ai": "^6.0.196",
-    "linkedom": "^0.18.0"
-  },
-  "peerDependencies": {
-    "@supabase/supabase-js": "^2.0.0",
-    "@vercel/kv": "^3.0.0",
-    "hono": "^4.0.0",
-    "next": ">=14",
-    "react": ">=18",
-    "zod": "^3.23.0 || ^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "@vercel/kv": {
-      "optional": true
-    },
-    "@supabase/supabase-js": {
-      "optional": true
-    },
-    "hono": {
-      "optional": true
-    },
-    "next": {
-      "optional": true
-    }
+    "linkedom": "^0.18.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
-    "@testing-library/react": "^16.0.0",
     "@types/node": "^20.0.0",
-    "@types/react": "^19.0.0",
     "@vitest/coverage-v8": "^2.0.0",
     "eslint": "^9.0.0",
-    "jsdom": "^25.0.0",
     "prettier": "^3.3.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "tsup": "^8.5.1",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
-    "vitest": "^2.0.0",
-    "zod": "^4.4.3"
+    "vitest": "^2.0.0"
   },
   "engines": {
     "node": ">=18.17"

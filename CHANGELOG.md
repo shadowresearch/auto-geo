@@ -4,9 +4,45 @@ All notable changes to `auto-geo` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The schema in `core/schema.ts` and the `ContentStore` interface in `core/store.ts` are the public APIs. Breaking changes to either bump the major version. Loosening a schema constraint or adding an optional field is a minor version. Patches fix bugs without changing the API surface.
+The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are the public API (as of v0.7.0 — the library exports were removed). Breaking changes to any of them bump the major version (minor pre-1.0). Additive flags and output fields are a minor version. Patches fix bugs without changing the surface.
 
 ## [Unreleased]
+
+## [0.7.0] — 2026-06-10
+
+**auto-geo is now CLI-only — a complete, file-based GEO engine.** The package was cut down to the thing people actually use (the CLI) and built out into a full loop: set up once, audit, generate, fix, measure, and now *track over time*.
+
+### BREAKING — library surface removed
+
+- **All package exports are gone.** `auto-geo`, `auto-geo/schema`, `auto-geo/validation`, `auto-geo/jsonld`, `auto-geo/react`, `auto-geo/next`, `auto-geo/hono`, `auto-geo/cloudflare`, and `auto-geo/storage/*` no longer exist. The package now ships exactly one thing: the `auto-geo` binary.
+  - Removed: `core/` publish pipeline + JSON-LD derivation + soft-audit, `adapters/http/*` (Next.js, Hono, Cloudflare Workers), `adapters/storage/*` (KV, Supabase, memory), `components/react/*`, the MCP server, `openapi.yaml`, and all six example apps.
+  - The resource schema lives on inside the CLI (`cli/schema.ts`) — it's what `write`/`fix` validate against.
+  - If you depended on the library: pin `auto-geo@0.6.3` (still on npm) or vendor the files from the [v0.6.3 tag](https://github.com/shadowresearch/auto-geo/tree/v0.6.3).
+- **Peer dependencies removed** (`react`, `next`, `hono`, `@vercel/kv`, `@supabase/supabase-js`, `zod`). `zod` is now a regular dependency; `npm i -g auto-geo` and `npx auto-geo` need nothing else.
+
+### Added — the `.auto-geo/` workspace
+
+- **`auto-geo prompts`** (new command) — manage the tracked prompt set in `.auto-geo/prompts.txt` (plain text, committable):
+  - `prompts add "<q>" [...]` appends with case-insensitive dedupe, and bootstraps the workspace on first use — no init required.
+  - `prompts list` (default) — numbered list; `prompts rm <index|text>` removes exactly one line, preserving comments byte-identical.
+- **`auto-geo check` runs your tracked prompts by default.** With no `--query` / `--queries-file`, check loads `.auto-geo/prompts.txt` — so a bare `auto-geo check` (domain from config) is the whole measurement loop.
+- **Every check run is saved automatically** to `.auto-geo/checks/<ISO-timestamp>--<engine>.json` (a `{ savedAt, kind, report }` envelope around the exact `--json` report shape). Opt out per-run with `--no-save`. One-off checks in directories without a workspace don't scatter state — saving only happens where a workspace exists.
+- **`auto-geo history`** (new command) — citation coverage over time, from the saved runs:
+  - Run-by-run table: date, engine, coverage (with ↑/↓ trend vs the previous run of the *same engine selector* — engines are never compared to each other), cited/total, cost.
+  - "Since last run" delta: which prompts are **newly cited** and which were **lost**.
+  - `--engine <name>` filter, `--limit N` (default 15), `--json` rows + delta.
+- **`auto-geo init` now sets up the full system** — config + `.env.local` + the `.auto-geo/` workspace in one shot, and the interactive flow ends by seeding your tracked prompts (comma-separated, optional). Existing workspaces are backfilled, never clobbered.
+
+### Changed
+
+- Global help reframed around the engine loop: `init` → `doctor` → `write` → `fix` → `check` → `history`; tagline is now "the open-source GEO engine".
+- README rewritten CLI-first; `AGENT.md` rewritten as an operating spec for coding agents driving the CLI; docs site updated (new `init` / `prompts` / `history` references, library docs removed).
+- `check` with zero resolvable queries now says how to fix it (`--query`, `--queries-file`, or `auto-geo prompts add`).
+- tsup now produces a single CLI build (no more dual library/CLI builds); coverage tracks `cli/**`.
+
+### Test coverage
+
+- 548 → **524 tests**: −76 library tests removed with their code, +52 new (workspace discovery / prompts / history round-trips, init workspace scaffolding + prompt seeding, renderer + parser coverage for both new commands).
 
 ## [0.6.3] — 2026-06-09
 

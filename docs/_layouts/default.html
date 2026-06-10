@@ -23,13 +23,6 @@
       href="{{ site.llms_full_txt | default: '/llms-full.txt' | relative_url }}"
       title="llms-full.txt — full LLM-ingestible bundle"
     />
-    <link
-      rel="alternate"
-      type="application/yaml"
-      href="{{ site.openapi_url | default: '/openapi.yaml' | relative_url }}"
-      title="OpenAPI spec for the auto-geo publish endpoint"
-    />
-
     {%- comment -%}
       JSON-LD Article markup. Eat-our-own-dogfood: auto-geo derives this
       shape automatically from the typed payload at publish time; here we
@@ -99,8 +92,6 @@
           <a href="{{ site.llms_txt | default: '/llms.txt' | relative_url }}">llms.txt</a>
           ·
           <a href="{{ site.llms_full_txt | default: '/llms-full.txt' | relative_url }}">llms-full.txt</a>
-          ·
-          <a href="{{ site.openapi_url | default: '/openapi.yaml' | relative_url }}">openapi.yaml</a>
         </span>
       </footer>
     </main>

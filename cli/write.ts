@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ResourceAuthor, ResourcePublishPayload } from "../core/schema";
+import type { ResourceAuthor, ResourcePublishPayload } from "./schema";
 import { estimateCost, estimateCostPerPage, formatUsd, sumUsage } from "./cost";
 import {
   generateResourcePayload,

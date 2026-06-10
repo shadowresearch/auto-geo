@@ -1139,11 +1139,12 @@ describe("run() — check subcommand", () => {
     expect(err.join("\n")).toContain("--domain is required");
   });
 
-  it("returns 2 when no queries are supplied", async () => {
+  it("returns 2 when no queries are supplied (and no tracked prompts)", async () => {
     const { err } = captureConsole();
     const code = await run(["check", "--domain", "shadow.inc"]);
     expect(code).toBe(2);
-    expect(err.join("\n")).toContain("at least one --query");
+    expect(err.join("\n")).toContain("no queries");
+    expect(err.join("\n")).toContain("auto-geo prompts add");
   });
 
   it("returns 2 for an unknown --engine value", async () => {

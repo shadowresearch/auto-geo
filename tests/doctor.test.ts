@@ -915,7 +915,7 @@ describe("run()", () => {
     const { out } = captureConsole();
     const code = await run(["--help"]);
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("auto-geo doctor");
+    expect(out.join("\n")).toContain("auto-geo init --help");
   });
 
   it("bare `auto-geo` (no args) renders global help with exit 0", async () => {

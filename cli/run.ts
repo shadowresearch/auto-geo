@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { readFile, writeFile } from "node:fs/promises";
+import { relative } from "node:path";
 import {
   ALL_ENGINE_NAMES,
   ENGINE_ENV_VARS,
@@ -42,7 +43,7 @@ import {
   renderVersion,
 } from "./help";
 import type { LlmProvider, ProviderId } from "./llm";
-import type { ResourceAuthor } from "../core/schema";
+import type { ResourceAuthor } from "./schema";
 import {
   CONFIG_FLAG_ALIASES,
   ConfigError,
@@ -60,6 +61,22 @@ import {
   type InitArgs,
 } from "./init";
 import { loadEnvFiles } from "./env";
+import {
+  parsePromptsArgs,
+  renderPromptsJson,
+  renderPromptsOutcome,
+  runPrompts,
+  PromptsError,
+  type PromptsArgs,
+} from "./prompts";
+import {
+  parseHistoryArgs,
+  renderHistoryHuman,
+  renderHistoryJson,
+  runHistory,
+  type HistoryArgs,
+} from "./history";
+import { findWorkspace, loadPrompts, saveCheckReport } from "./workspace";
 
 /**
  * Argument parser + top-level `run` for the `auto-geo` CLI. Lives in
@@ -68,10 +85,13 @@ import { loadEnvFiles } from "./env";
  * unconditional executable shim.
  *
  * Subcommand dispatch:
+ *   - `auto-geo init`           — scaffold config, env, and workspace
  *   - `auto-geo doctor <url>`   — audit a single URL or sitemap
  *   - `auto-geo fix <url>`      — LLM-driven GEO rewrite of an existing page
  *   - `auto-geo write --domain` — generate resource pages from queries
- *   - `auto-geo check --domain` — measure citation coverage in AI engines
+ *   - `auto-geo check`          — measure citation coverage in AI engines
+ *   - `auto-geo prompts …`      — manage the tracked prompt set
+ *   - `auto-geo history`        — coverage over time from saved check runs
  *   - bare `<url>` → doctor (back-compat with v0.1.3)
  *
  * Subcommands each parse their own flags in dedicated parsers
@@ -179,6 +199,12 @@ export type CheckArgs = {
   format: "auto-geo" | "geo-audit";
   timeoutPerQuerySec?: number;
   maxRuntimeSec?: number;
+  /**
+   * Save the run to `.auto-geo/checks/` (default true; only applies
+   * when a workspace exists). `--no-save` opts out — e.g. throwaway
+   * experiments that shouldn't pollute `auto-geo history`.
+   */
+  save: boolean;
   color: boolean;
   narrow: boolean;
 };
@@ -204,6 +230,8 @@ export type ParsedArgs =
   | WriteArgs
   | CheckArgs
   | InitArgs
+  | PromptsArgs
+  | HistoryArgs
   | HelpArgs
   | VersionArgs;
 
@@ -215,6 +243,8 @@ const SUBCOMMANDS = new Set<CommandName>([
   "write",
   "check",
   "init",
+  "prompts",
+  "history",
 ]);
 
 function isSubcommand(s: string | undefined): s is CommandName {
@@ -273,6 +303,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (first === "check") return parseCheckArgs(argv.slice(1));
   if (first === "doctor") return parseDoctorArgs(argv.slice(1));
   if (first === "init") return parseInitArgs(argv.slice(1));
+  if (first === "prompts") return parsePromptsArgs(argv.slice(1));
+  if (first === "history") return parseHistoryArgs(argv.slice(1));
   // Bare `<url>` dispatches to doctor for v0.1.3 back-compat.
   return parseDoctorArgs(argv);
 }
@@ -496,6 +528,7 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     ndjson: false,
     answers: "preview",
     format: "auto-geo",
+    save: true,
     color: true,
     narrow: false,
   };
@@ -509,6 +542,7 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
     };
     if (a === "--json") args.json = true;
     else if (a === "--ndjson") args.ndjson = true;
+    else if (a === "--no-save") args.save = false;
     else if (a === "--no-color") args.color = false;
     else if (a === "--narrow") args.narrow = true;
     else if (a === "--domain") args.domain = requireValue("--domain");
@@ -635,6 +669,11 @@ export async function run(argv: string[]): Promise<number> {
   // loadConfig would read, so loading first would be circular and
   // would surface schema errors from a half-written config.
   if (parsed.command === "init") return runInitCommand(parsed);
+  // `prompts` and `history` are pure workspace commands — they never
+  // read the config file, so they also skip config loading (a broken
+  // config shouldn't block listing your prompts).
+  if (parsed.command === "prompts") return runPromptsCommand(parsed);
+  if (parsed.command === "history") return runHistoryCommand(parsed);
 
   // Load config once for the lifetime of this invocation. Errors
   // (malformed JSON, schema violation) surface as exit 2 — config
@@ -1113,9 +1152,27 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
     }
   }
 
+  // No explicit queries → fall back to the tracked prompt set in the
+  // `.auto-geo/` workspace. This is the v0.7.0 default loop: `auto-geo
+  // check` with no flags runs your tracked prompts against your
+  // configured domain and saves the run to history.
+  if (queries.length === 0) {
+    const workspace = findWorkspace();
+    if (workspace) {
+      const tracked = await loadPrompts(workspace);
+      if (tracked.length > 0) {
+        queries.push(...tracked);
+        // Progress note → stderr so --json / --ndjson stdout stays pure.
+        process.stderr.write(
+          `  using ${tracked.length} tracked prompt${tracked.length === 1 ? "" : "s"} from .auto-geo/prompts.txt\n`
+        );
+      }
+    }
+  }
+
   if (queries.length === 0) {
     console.error(
-      "auto-geo check: at least one --query or --queries-file is required"
+      "auto-geo check: no queries — pass --query / --queries-file, or track prompts with `auto-geo prompts add`"
     );
     console.error(getHelpForError("check"));
     return 2;
@@ -1265,6 +1322,8 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
         }
       }
 
+      await persistCheckRun(report, parsed.save);
+
       // If max-runtime tripped, signal that via exit code 2 even if
       // some coverage was achieved before the deadline — surfaces the
       // truncated run to CI.
@@ -1359,6 +1418,8 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
       }
     }
 
+    await persistCheckRun(report, parsed.save);
+
     // --max-runtime tripped → exit 2 even if coverage > 0 in the
     // partial run; surfaces the truncated result to CI.
     const skippedByDeadline = report.results.some(
@@ -1394,6 +1455,33 @@ async function runCheckCommand(parsed: CheckArgs): Promise<number> {
       );
     }
     return 1;
+  }
+}
+
+/**
+ * Persist a finished check run into `.auto-geo/checks/` so `auto-geo
+ * history` can trend it. No-ops when saving is disabled (`--no-save`)
+ * or when there's no workspace — a one-off check in a random directory
+ * shouldn't scatter state. Failures degrade to a warning; the check
+ * itself already succeeded.
+ */
+async function persistCheckRun(
+  report: Parameters<typeof saveCheckReport>[1],
+  save: boolean
+): Promise<void> {
+  if (!save) return;
+  const workspace = findWorkspace();
+  if (!workspace) return;
+  try {
+    const path = await saveCheckReport(workspace, report);
+    const rel = relative(process.cwd(), path);
+    process.stderr.write(
+      `  saved → ${rel.startsWith("..") ? path : rel} (auto-geo history)\n`
+    );
+  } catch (err) {
+    console.error(
+      `auto-geo check: warning — could not save run to .auto-geo/checks: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -1548,6 +1636,59 @@ function formatYmd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+// ── prompts runner ────────────────────────────────────────────────
+
+async function runPromptsCommand(parsed: PromptsArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+  try {
+    const outcome = await runPrompts(parsed);
+    if (parsed.json) {
+      console.log(renderPromptsJson(outcome));
+    } else {
+      console.log(
+        renderPromptsOutcome(outcome, { colors, narrow: parsed.narrow })
+      );
+    }
+    return 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (parsed.json) {
+      console.log(JSON.stringify({ error: message }, null, 2));
+    } else {
+      console.error(`auto-geo prompts: ${message}`);
+      if (!(err instanceof PromptsError)) {
+        console.error(getHelpForError("prompts"));
+      }
+    }
+    return 1;
+  }
+}
+
+// ── history runner ────────────────────────────────────────────────
+
+async function runHistoryCommand(parsed: HistoryArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+  try {
+    const outcome = await runHistory(parsed);
+    if (parsed.json) {
+      console.log(renderHistoryJson(outcome));
+    } else {
+      console.log(
+        renderHistoryHuman(outcome, { colors, narrow: parsed.narrow })
+      );
+    }
+    return 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (parsed.json) {
+      console.log(JSON.stringify({ error: message }, null, 2));
+    } else {
+      console.error(`auto-geo history: ${message}`);
+    }
+    return 1;
+  }
 }
 
 // ── init runner ───────────────────────────────────────────────────

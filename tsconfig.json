@@ -15,12 +15,6 @@
     "allowJs": false,
     "noEmit": true
   },
-  "include": [
-    "core/**/*",
-    "adapters/**/*",
-    "components/**/*",
-    "cli/**/*",
-    "mcp/**/*"
-  ],
-  "exclude": ["node_modules", "examples"]
+  "include": ["cli/**/*"],
+  "exclude": ["node_modules"]
 }

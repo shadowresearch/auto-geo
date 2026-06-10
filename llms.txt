@@ -1,33 +1,31 @@
 # auto-geo
 
-> Publishing engine for GEO (Generative Engine Optimization) resource pages — the pages large language models cite. Open-source (MIT), built by Shadow.
+> The open-source GEO (Generative Engine Optimization) engine — a CLI that audits, generates, fixes, and tracks the pages large language models cite. Open-source (MIT), built by Shadow.
 
-`auto-geo` is a typed publishing primitive that enforces the structural and quality patterns empirically linked to higher AI-engine citation rates: TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid seven-block page architecture. It validates incoming payloads at the publish boundary, derives Schema.org JSON-LD automatically, and ships HTTP adapters for Next.js and Hono plus storage adapters for Vercel KV / Upstash Redis, Supabase, and in-memory testing. Built by [Shadow](https://www.shadow.inc) — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map.
+`auto-geo` is a command-line GEO engine. It encodes the structural and quality patterns empirically linked to higher AI-engine citation rates — TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid seven-block page architecture — into one workflow: `doctor` audits any URL for citation readiness, `write` generates publish-ready pages from target queries, `fix` rewrites existing pages, `check` measures whether AI engines (ChatGPT, Perplexity, Claude, Gemini, Grok) actually cite your domain, and `history` trends that coverage over time. State is file-based and committable: tracked prompts in `.auto-geo/prompts.txt`, every check run saved to `.auto-geo/checks/`. Built by [Shadow](https://www.shadow.inc) — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map.
 
 ## Concept
 
-- [What is a GEO resource page?](https://github.com/shadowresearch/auto-geo#what-is-a-geo-resource-page): the architecture this enforces
-- [Why auto-geo](https://github.com/shadowresearch/auto-geo#why-auto-geo): comparison to alternatives
+- [What is a GEO resource page?](https://github.com/shadowresearch/auto-geo/blob/main/docs/concept.md): the page architecture this engine enforces
 - [GEO SOP](https://github.com/shadowresearch/auto-geo/blob/main/docs/sop.md): the standard operating procedure behind every schema constraint
+- [Page architecture](https://github.com/shadowresearch/auto-geo/blob/main/docs/architecture.md): the seven mandatory blocks
+- [Validation reference](https://github.com/shadowresearch/auto-geo/blob/main/docs/validation.md): hard rejects vs. soft warnings
 
-## API
+## CLI
 
-- [Publish endpoint contract](https://github.com/shadowresearch/auto-geo/blob/main/docs/architecture.md): the seven-block page architecture
-- [OpenAPI spec](https://github.com/shadowresearch/auto-geo/blob/main/openapi.yaml): machine-readable description of POST /api/resources/publish + DELETE
-- [Storage adapter interface](https://github.com/shadowresearch/auto-geo/blob/main/docs/storage-adapters.md): the `ContentStore` contract and reference adapters
-- [Validation reference](https://github.com/shadowresearch/auto-geo/blob/main/docs/validation.md): hard rejects (400) vs. soft warnings (200)
-
-## Examples
-
-- [Next.js minimal](https://github.com/shadowresearch/auto-geo/tree/main/examples/next-minimal)
-- [Hono on Bun](https://github.com/shadowresearch/auto-geo/tree/main/examples/hono-bun)
-- [Express](https://github.com/shadowresearch/auto-geo/tree/main/examples/express)
-- [SvelteKit](https://github.com/shadowresearch/auto-geo/tree/main/examples/sveltekit)
-- [Fastify](https://github.com/shadowresearch/auto-geo/tree/main/examples/fastify)
+- [README](https://github.com/shadowresearch/auto-geo#readme): quickstart and the full workflow
+- [init](https://github.com/shadowresearch/auto-geo/blob/main/docs/init.md): one-shot setup — config, .env.local, .auto-geo workspace
+- [doctor](https://github.com/shadowresearch/auto-geo/blob/main/docs/doctor.md): audit any URL or sitemap for citation readiness
+- [write](https://github.com/shadowresearch/auto-geo/blob/main/docs/write.md): generate publish-ready pages from target queries
+- [fix](https://github.com/shadowresearch/auto-geo/blob/main/docs/fix.md): LLM rewrite of an existing page
+- [prompts](https://github.com/shadowresearch/auto-geo/blob/main/docs/prompts.md): manage the tracked prompt set
+- [check](https://github.com/shadowresearch/auto-geo/blob/main/docs/check.md): measure citation coverage across AI engines
+- [history](https://github.com/shadowresearch/auto-geo/blob/main/docs/history.md): citation coverage over time
+- [AGENT.md](https://github.com/shadowresearch/auto-geo/blob/main/AGENT.md): operating spec for coding agents driving the CLI
 
 ## Optional
 
-- [Full LLM-ingestible bundle](https://github.com/shadowresearch/auto-geo/blob/main/llms-full.txt): README + concept + SOP + architecture + validation + storage adapters inlined in one file
+- [Full LLM-ingestible bundle](https://github.com/shadowresearch/auto-geo/blob/main/llms-full.txt): README + concept + SOP + architecture + validation inlined in one file
 - [Changelog](https://github.com/shadowresearch/auto-geo/blob/main/CHANGELOG.md)
 - [Contributing](https://github.com/shadowresearch/auto-geo/blob/main/CONTRIBUTING.md)
 - [npm package](https://www.npmjs.com/package/auto-geo)

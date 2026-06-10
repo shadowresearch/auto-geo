@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { resourcePublishSchema } from "../core/schema";
-import type { ResourceAuthor, ResourcePublishPayload } from "../core/schema";
+import { resourcePublishSchema } from "./schema";
+import type { ResourceAuthor, ResourcePublishPayload } from "./schema";
 import { runAllChecks } from "./checks";
 import { auditParsedPage } from "./doctor";
 import { fetchPage, parsePage } from "./fetch";

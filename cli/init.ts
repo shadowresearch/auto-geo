@@ -6,17 +6,20 @@ import { stdin, stdout } from "node:process";
 import { bold, cyan, dim, glyphs, green, red } from "./ui";
 import { CONFIG_FILE_NAME, type AutoGeoConfig } from "./config";
 import type { ProviderId } from "./llm";
+import { addPrompts, ensureWorkspace } from "./workspace";
 
 /**
- * `auto-geo init` — first-run scaffolding for v0.6.0.
+ * `auto-geo init` — first-run scaffolding. Sets up the FULL system in
+ * one shot (v0.7.0):
  *
- * Writes:
  *   - `auto-geo.config.json` (committable; no secrets)
  *   - `.env.local`           (gitignored by convention; empty key slots)
+ *   - `.auto-geo/`           (workspace: tracked prompts + check history)
  *
  * Modes:
  *   - Interactive (default): a tiny prompt sequence over readline.
  *     Cancelable with Ctrl-C. Each prompt has a sensible default in [].
+ *     Ends by optionally seeding the tracked-prompt set.
  *   - `--yes` / `-y`        : non-interactive. Writes a template config
  *     with all keys commented out + a `.env.local` stub. Good for CI /
  *     scripted onboarding.
@@ -25,7 +28,9 @@ import type { ProviderId } from "./llm";
  *   - `--force` : overwrite an existing `auto-geo.config.json`. Without
  *                 this, `init` refuses and prints the existing path.
  *
- * Never overwrites an existing `.env.local` — keys are precious.
+ * Never overwrites an existing `.env.local` — keys are precious. The
+ * workspace scaffold is additive: an existing `.auto-geo/` is backfilled,
+ * never clobbered.
  */
 
 // ── Parsed args ───────────────────────────────────────────────────
@@ -79,6 +84,12 @@ export type InitOutcome = {
   configWritten: boolean;
   envPath: string;
   envWritten: boolean;
+  /** Absolute path to the `.auto-geo/` workspace. Empty if init refused. */
+  workspaceDir: string;
+  /** True if init created the workspace (vs found an existing one). */
+  workspaceCreated: boolean;
+  /** Tracked prompts seeded during this init run. */
+  promptsSeeded: string[];
   /** True if `auto-geo.config.json` already existed and `--force` was not set. */
   refusedExisting: boolean;
   /** The config values we ended up writing (or would write). */
@@ -113,12 +124,16 @@ export async function runInit(opts: InitOptions = {}): Promise<InitOutcome> {
       configWritten: false,
       envPath,
       envWritten: false,
+      workspaceDir: "",
+      workspaceCreated: false,
+      promptsSeeded: [],
       refusedExisting: true,
       config: {},
     };
   }
 
   let config: AutoGeoConfig;
+  let seedPrompts: string[] = [];
   if (opts.yes) {
     config = buildTemplateConfig();
   } else {
@@ -126,7 +141,9 @@ export async function runInit(opts: InitOptions = {}): Promise<InitOutcome> {
       ? { prompt: opts.prompt, close: () => {} }
       : makeReadlinePrompt();
     try {
-      config = await runInteractivePrompts(promptHelpers.prompt);
+      const answers = await runInteractivePrompts(promptHelpers.prompt);
+      config = answers.config;
+      seedPrompts = answers.seedPrompts;
     } finally {
       promptHelpers.close();
     }
@@ -143,11 +160,24 @@ export async function runInit(opts: InitOptions = {}): Promise<InitOutcome> {
     envWritten = true;
   }
 
+  // Scaffold the `.auto-geo/` workspace (tracked prompts + check
+  // history). Additive — an existing workspace is backfilled, never
+  // clobbered.
+  const { workspace, created: workspaceCreated } = await ensureWorkspace(cwd);
+  let promptsSeeded: string[] = [];
+  if (seedPrompts.length > 0) {
+    const { added } = await addPrompts(workspace, seedPrompts);
+    promptsSeeded = added;
+  }
+
   return {
     configPath,
     configWritten,
     envPath,
     envWritten,
+    workspaceDir: workspace.dir,
+    workspaceCreated,
+    promptsSeeded,
     refusedExisting: false,
     config,
   };
@@ -157,7 +187,7 @@ export async function runInit(opts: InitOptions = {}): Promise<InitOutcome> {
 
 async function runInteractivePrompts(
   prompt: InitPrompt
-): Promise<AutoGeoConfig> {
+): Promise<{ config: AutoGeoConfig; seedPrompts: string[] }> {
   const config: AutoGeoConfig = {};
 
   const domain = (
@@ -198,7 +228,19 @@ async function runInteractivePrompts(
   if (authorLinkedin) author.linkedinUrl = authorLinkedin;
   if (Object.keys(author).length > 0) config.author = author;
 
-  return config;
+  // Seed the tracked-prompt set — the questions `check` measures and
+  // `history` trends. Comma-separated so one answer can carry several.
+  const promptsRaw = (
+    await prompt(
+      "Prompts to track — the queries you want AI engines to cite you for\n(comma-separated, press Enter to skip): "
+    )
+  ).trim();
+  const seedPrompts = promptsRaw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  return { config, seedPrompts };
 }
 
 // ── Template builders (used by --yes and as fallbacks) ────────────
@@ -272,6 +314,29 @@ export function renderInitOutcome(
       )
     );
   }
+  if (outcome.workspaceCreated) {
+    lines.push(
+      green(
+        `${g.ok} created .auto-geo/ workspace — tracked prompts + check history (${outcome.workspaceDir})`,
+        colors
+      )
+    );
+  } else if (outcome.workspaceDir) {
+    lines.push(
+      dim(
+        `   .auto-geo/ workspace already exists — leaving it alone (${outcome.workspaceDir})`,
+        colors
+      )
+    );
+  }
+  if (outcome.promptsSeeded.length > 0) {
+    lines.push(
+      green(
+        `${g.ok} tracking ${outcome.promptsSeeded.length} prompt${outcome.promptsSeeded.length === 1 ? "" : "s"} (.auto-geo/prompts.txt)`,
+        colors
+      )
+    );
+  }
   lines.push("");
   lines.push(bold("Next:", colors));
   lines.push(
@@ -283,9 +348,15 @@ export function renderInitOutcome(
   lines.push(
     `  3. Run ${cyan("auto-geo doctor <url>", colors)} to audit a page`
   );
-  lines.push(
-    `  4. Run ${cyan('auto-geo write --query "best foo tools"', colors)} to generate one`
-  );
+  if (outcome.promptsSeeded.length > 0) {
+    lines.push(
+      `  4. Run ${cyan("auto-geo check", colors)} to measure citations for your tracked prompts`
+    );
+  } else {
+    lines.push(
+      `  4. Run ${cyan('auto-geo prompts add "best foo tools"', colors)} then ${cyan("auto-geo check", colors)}`
+    );
+  }
   return lines.join("\n");
 }
 
