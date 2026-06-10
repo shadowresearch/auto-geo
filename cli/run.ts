@@ -59,6 +59,7 @@ import {
   runInit,
   type InitArgs,
 } from "./init";
+import { loadEnvFiles } from "./env";
 
 /**
  * Argument parser + top-level `run` for the `auto-geo` CLI. Lives in
@@ -591,6 +592,12 @@ function inferCommandFromArgv(argv: string[]): CommandName | undefined {
 }
 
 export async function run(argv: string[]): Promise<number> {
+  // v0.6.3: auto-load .env.local / .env from cwd (walks up). Process
+  // env always wins — we never overwrite a key already set. Closes
+  // the loop on `auto-geo init`, which scaffolds .env.local but
+  // previously required the user to source it themselves.
+  loadEnvFiles();
+
   // Pre-resolve the package version so renderers can include it
   // synchronously (they're called from many sites). Cheap — one read,
   // cached for the lifetime of the process.
