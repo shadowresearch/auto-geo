@@ -19,3 +19,7 @@ _site/
 docs/_site/
 docs/.jekyll-cache/
 docs/.jekyll-metadata
+
+# bun compile temp artifacts
+*.bun-build
+.*.bun-build

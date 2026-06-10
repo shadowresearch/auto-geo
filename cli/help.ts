@@ -733,6 +733,16 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
 // ── Version ───────────────────────────────────────────────────────
 
 /**
+ * Compile-time version constant for standalone binaries. A compiled
+ * executable (bun build --compile) has no package.json on disk, so the
+ * release workflow injects the version via
+ * `--define __AUTO_GEO_VERSION__='"x.y.z"'`. Under tsup / tests the
+ * identifier is never defined and the `typeof` guard falls through to
+ * the package.json walk below.
+ */
+declare const __AUTO_GEO_VERSION__: string | undefined;
+
+/**
  * Cached package version read from package.json. Resolved lazily so a
  * test or library import doesn't pay for the file-read.
  */
@@ -746,6 +756,10 @@ let cachedVersion: string | undefined;
  */
 export async function getPackageVersion(): Promise<string> {
   if (cachedVersion) return cachedVersion;
+  if (typeof __AUTO_GEO_VERSION__ === "string") {
+    cachedVersion = __AUTO_GEO_VERSION__;
+    return cachedVersion;
+  }
   // Walk up from this file looking for the nearest package.json with
   // `"name": "auto-geo"`. This file lives at `cli/help.ts` in source
   // and `dist/cli/help.js` in the built package, so we may need to
