@@ -33,44 +33,97 @@ import {
 
 // ── Parsed args ───────────────────────────────────────────────────
 
-export type PromptsAction = "list" | "add" | "rm";
+export type PromptsAction = "list" | "add" | "rm" | "discover";
 
 export type PromptsArgs = {
   command: "prompts";
   action: PromptsAction;
   /** Prompt texts for `add`; the single selector for `rm`. */
   values: string[];
+  // discover-only options (parser defaults elsewhere).
+  count?: number;
+  domain?: string;
+  provider?: "openai" | "anthropic";
+  model?: string;
+  dryRun: boolean;
   json: boolean;
   color: boolean;
   narrow: boolean;
 };
+
+const DISCOVER_ONLY_FLAGS = new Set([
+  "--count",
+  "--domain",
+  "--provider",
+  "--model",
+  "--dry-run",
+]);
 
 export function parsePromptsArgs(argv: string[]): PromptsArgs {
   const args: PromptsArgs = {
     command: "prompts",
     action: "list",
     values: [],
+    dryRun: false,
     json: false,
     color: true,
     narrow: false,
   };
 
   const positionals: string[] = [];
-  for (const a of argv) {
+  const discoverFlagsSeen: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    const requireValue = (flag: string): string => {
+      const next = argv[++i];
+      if (next === undefined) throw new Error(`${flag} requires a value`);
+      return next;
+    };
     if (a === "--json") args.json = true;
     else if (a === "--no-color") args.color = false;
     else if (a === "--narrow") args.narrow = true;
-    else if (a.startsWith("--")) throw new Error(`unknown flag: ${a}`);
+    else if (a === "--dry-run") {
+      args.dryRun = true;
+      discoverFlagsSeen.push(a);
+    } else if (a === "--count") {
+      const n = Number(requireValue("--count"));
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n))
+        throw new Error("--count requires a positive integer");
+      args.count = n;
+      discoverFlagsSeen.push(a);
+    } else if (a === "--domain") {
+      args.domain = requireValue("--domain");
+      discoverFlagsSeen.push(a);
+    } else if (a === "--provider") {
+      const v = requireValue("--provider");
+      if (v !== "openai" && v !== "anthropic")
+        throw new Error(`--provider must be openai or anthropic; got "${v}"`);
+      args.provider = v;
+      discoverFlagsSeen.push(a);
+    } else if (a === "--model") {
+      args.model = requireValue("--model");
+      discoverFlagsSeen.push(a);
+    } else if (a.startsWith("--")) throw new Error(`unknown flag: ${a}`);
     else positionals.push(a);
   }
 
   const action = positionals[0];
+  const rejectDiscoverFlags = (forAction: string): void => {
+    const bad = discoverFlagsSeen.filter((f) => DISCOVER_ONLY_FLAGS.has(f));
+    if (bad.length > 0) {
+      throw new Error(
+        `${bad[0]} is only valid with 'prompts discover' (got 'prompts ${forAction}')`
+      );
+    }
+  };
+
   if (action === undefined || action === "list") {
     if (positionals.length > 1) {
       throw new Error(
         `unexpected arguments after 'list': ${positionals.slice(1).join(" ")}`
       );
     }
+    rejectDiscoverFlags("list");
     args.action = "list";
     return args;
   }
@@ -80,6 +133,7 @@ export function parsePromptsArgs(argv: string[]): PromptsArgs {
         'prompts add requires at least one prompt, e.g. auto-geo prompts add "best media monitoring tools"'
       );
     }
+    rejectDiscoverFlags("add");
     args.action = "add";
     args.values = positionals.slice(1);
     return args;
@@ -90,12 +144,22 @@ export function parsePromptsArgs(argv: string[]): PromptsArgs {
         "prompts rm requires exactly one selector — a 1-based index or the exact prompt text"
       );
     }
+    rejectDiscoverFlags("rm");
     args.action = "rm";
     args.values = positionals.slice(1);
     return args;
   }
+  if (action === "discover") {
+    if (positionals.length > 1) {
+      throw new Error(
+        `unexpected arguments after 'discover': ${positionals.slice(1).join(" ")} (use --count / --domain)`
+      );
+    }
+    args.action = "discover";
+    return args;
+  }
   throw new Error(
-    `unknown prompts action: ${JSON.stringify(action)} (expected list, add, or rm)`
+    `unknown prompts action: ${JSON.stringify(action)} (expected list, add, rm, or discover)`
   );
 }
 
@@ -130,6 +194,13 @@ export async function runPrompts(
   parsed: PromptsArgs,
   cwd: string = process.cwd()
 ): Promise<PromptsOutcome> {
+  if (parsed.action === "discover") {
+    // `discover` needs config + LLM model resolution — it's dispatched
+    // separately in run.ts (runDiscoverCommand) and never lands here.
+    throw new PromptsError(
+      "internal: discover is dispatched via runDiscoverCommand"
+    );
+  }
   if (parsed.action === "add") {
     // First `add` bootstraps the workspace — no init required.
     const { workspace } = await ensureWorkspace(cwd);

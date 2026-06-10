@@ -77,6 +77,13 @@ import {
   type HistoryArgs,
 } from "./history";
 import { findWorkspace, loadPrompts, saveCheckReport } from "./workspace";
+import {
+  DEFAULT_DISCOVER_COUNT,
+  makeAiSdkGenerate,
+  renderDiscoverJson,
+  renderDiscoverOutcome,
+  runDiscover,
+} from "./discover";
 
 /**
  * Argument parser + top-level `run` for the `auto-geo` CLI. Lives in
@@ -1641,6 +1648,7 @@ function formatYmd(d: Date): string {
 // ── prompts runner ────────────────────────────────────────────────
 
 async function runPromptsCommand(parsed: PromptsArgs): Promise<number> {
+  if (parsed.action === "discover") return runDiscoverCommand(parsed);
   const colors = shouldUseColor(parsed.color, parsed.json);
   try {
     const outcome = await runPrompts(parsed);
@@ -1661,6 +1669,87 @@ async function runPromptsCommand(parsed: PromptsArgs): Promise<number> {
       if (!(err instanceof PromptsError)) {
         console.error(getHelpForError("prompts"));
       }
+    }
+    return 1;
+  }
+}
+
+// ── prompts discover runner ───────────────────────────────────────
+
+/**
+ * `auto-geo prompts discover` — the one prompts action that needs the
+ * config file (domain / provider / model defaults) and a resolved LLM.
+ * Resolution mirrors `write`: flag > env auto-detect > config > default.
+ */
+async function runDiscoverCommand(parsed: PromptsArgs): Promise<number> {
+  const colors = shouldUseColor(parsed.color, parsed.json);
+
+  let config: AutoGeoConfig | null = null;
+  try {
+    const loaded = await loadConfig();
+    if (loaded) config = loaded.config;
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error(`auto-geo: ${err.message}`);
+      return 2;
+    }
+    throw err;
+  }
+
+  const domain = parsed.domain ?? config?.domain;
+  if (!domain) {
+    console.error(
+      "auto-geo prompts discover: no domain — pass --domain or set one in auto-geo.config.json (auto-geo init)"
+    );
+    console.error(getHelpForError("prompts"));
+    return 2;
+  }
+
+  const provider =
+    parsed.provider ?? detectProviderFromEnv() ?? config?.provider ?? "openai";
+  const modelName =
+    parsed.model ?? config?.model ?? DEFAULT_MODEL_BY_PROVIDER[provider];
+
+  let model;
+  try {
+    model = await resolveModel(provider, modelName);
+  } catch (err) {
+    console.error(
+      `auto-geo prompts discover: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return 2;
+  }
+
+  const count = parsed.count ?? DEFAULT_DISCOVER_COUNT;
+  if (!parsed.json) {
+    process.stderr.write(
+      `  discovering ${count} prompts for ${domain} via ${provider} (${modelName})…\n`
+    );
+  }
+
+  try {
+    const outcome = await runDiscover({
+      domain,
+      count,
+      dryRun: parsed.dryRun,
+      generate: makeAiSdkGenerate(model),
+      provider,
+      modelName,
+    });
+    if (parsed.json) {
+      console.log(renderDiscoverJson(outcome));
+    } else {
+      console.log(
+        renderDiscoverOutcome(outcome, { colors, narrow: parsed.narrow })
+      );
+    }
+    return 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (parsed.json) {
+      console.log(JSON.stringify({ error: message }, null, 2));
+    } else {
+      console.error(`auto-geo prompts discover: ${message}`);
     }
     return 1;
   }

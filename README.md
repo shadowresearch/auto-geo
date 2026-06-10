@@ -242,7 +242,14 @@ npx auto-geo prompts            # numbered list
 npx auto-geo prompts rm 2       # by index — or by exact text
 ```
 
-`prompts add` bootstraps the workspace on first use, so you don't even need `init` to start tracking.
+Don't know what to track? **Let the engine propose your prompt set** — `discover` fetches your homepage, looks at what you already track, and has the LLM generate the high-intent queries you should compete for:
+
+```bash
+npx auto-geo prompts discover --dry-run    # preview the proposals
+npx auto-geo prompts discover --count 15   # append 15 (never overwrites, never duplicates)
+```
+
+`prompts add` (and `discover`) bootstrap the workspace on first use, so you don't even need `init` to start tracking.
 
 ---
 

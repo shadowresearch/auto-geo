@@ -448,6 +448,7 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "auto-geo prompts [list]",
       'auto-geo prompts add "<prompt>" ["<prompt>" ...]',
       "auto-geo prompts rm <index|text>",
+      "auto-geo prompts discover [--count N] [--domain <url>]",
     ],
     sections: [
       {
@@ -467,6 +468,36 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
             description:
               "Stop tracking one prompt, by its list index or exact text",
           },
+          {
+            flag: "discover",
+            description:
+              "LLM proposes new prompts for your domain (reads your homepage for context). Appends only — never overwrites, never duplicates",
+          },
+        ],
+      },
+      {
+        heading: "Discover options",
+        items: [
+          {
+            flag: "--count N",
+            description: "How many prompts to propose (default 10)",
+          },
+          {
+            flag: "--domain <url>",
+            description: "Publisher domain (defaults to config domain)",
+          },
+          {
+            flag: "--provider <id>",
+            description: "openai or anthropic (auto-detected from env keys)",
+          },
+          {
+            flag: "--model <name>",
+            description: "Model override (default gpt-5.4 / claude-sonnet-4-6)",
+          },
+          {
+            flag: "--dry-run",
+            description: "Preview the proposed prompts without writing",
+          },
         ],
       },
       {
@@ -481,11 +512,22 @@ export const COMMAND_HELP: Record<CommandName, CommandHelp> = {
         ],
       },
     ],
+    envVars: [
+      { label: "openai", envVar: "OPENAI_API_KEY (discover)" },
+      { label: "anthropic", envVar: "ANTHROPIC_API_KEY (discover)" },
+    ],
     examples: [
       {
         comment: "Track the queries you want AI engines to cite you for",
         lines: [
           'auto-geo prompts add "best media monitoring tools" "what is GEO"',
+        ],
+      },
+      {
+        comment: "Let the LLM propose a starting set (preview first)",
+        lines: [
+          "auto-geo prompts discover --dry-run",
+          "auto-geo prompts discover --count 15",
         ],
       },
       {

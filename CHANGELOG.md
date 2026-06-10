@@ -8,6 +8,21 @@ The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-06-10
+
+### Added
+
+- **`auto-geo prompts discover`** — LLM-assisted prompt discovery. Fetches the publisher's homepage for grounding, shows the model the already-tracked set, and proposes N new high-intent queries the domain should be the cited answer for.
+  - **Append-only, dedupe-always**: same contract as `prompts add` — existing prompts are never overwritten or rewritten, and duplicates (case-insensitive, vs the tracked set AND within the batch) are skipped and reported.
+  - `--count N` (default 10), `--domain` / `--provider` / `--model` (default from config / env auto-detect, same resolution as `write`), `--dry-run` (preview added/skipped without writing), `--json`.
+  - Resilient grounding: a failed homepage fetch degrades to domain-only context instead of erroring.
+  - Normalizes model output (strips stray list markers / quotes) and reports estimated LLM cost.
+  - Bootstraps the `.auto-geo/` workspace on first use, like `prompts add`.
+
+### Test coverage
+
+- 524 → 544 tests (+20): discover parser (incl. discover-only-flag rejection on other actions), prompt builders, runner (append/dedupe/dry-run/bootstrap/fetch-failure/normalization/cost), renderers.
+
 ## [0.7.1] — 2026-06-10
 
 ### Fixed
