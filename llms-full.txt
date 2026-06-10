@@ -21,7 +21,9 @@
 [![Docs](https://img.shields.io/badge/docs-shadowresearch.github.io%2Fauto--geo-blue)](https://shadowresearch.github.io/auto-geo/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-available-9cf)](./llms.txt)
 
-**The open-source GEO engine — a CLI that audits, generates, fixes, and tracks the pages large language models cite.**
+**The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok.**
+
+Audit, generate, fix, and track the pages large language models cite — one CLI, file-based, MIT.
 
 When someone asks ChatGPT, Perplexity, Claude, Gemini, or Google AI Overviews a question your business should answer, do those engines cite _your_ domain? `auto-geo` is the full loop for making that happen and proving it's happening:
 
@@ -443,6 +445,7 @@ Learn more at [shadow.inc](https://www.shadow.inc).
 # Concept — What is a GEO resource page?
 
 
+
 A **GEO resource page** (Generative Engine Optimization resource page) is a public web page whose structure, density, and citation signals are engineered to be quoted verbatim by AI search engines (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini) when answering user queries.
 
 It is a successor to the SEO landing page. Where SEO optimized for keyword matching against an inverted index, GEO optimizes for _retrieval and quotation_ by large language models that answer questions on the user's behalf.
@@ -499,6 +502,7 @@ Examples:
 ---
 
 # GEO Standard Operating Procedure
+
 
 
 The standard operating procedure for generative engine optimization resource pages.
@@ -743,6 +747,7 @@ External GEO research is rapidly evolving. Treat specific numerical claims (e.g.
 # Page architecture
 
 
+
 A GEO resource page is composed of seven blocks, in fixed order:
 
 1. **TL;DR** — 40-60 word answer capsule
@@ -949,6 +954,7 @@ See `docs/sop.md` for the full standard operating procedure and the empirical ba
 ---
 
 # Validation reference
+
 
 
 `auto-geo` enforces two layers of validation: **hard rejects** at the schema boundary and **soft quality heuristics** audited by `auto-geo doctor`.

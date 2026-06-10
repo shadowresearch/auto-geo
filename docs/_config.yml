@@ -11,8 +11,8 @@
 
 title: auto-geo
 description: >-
-  The open-source GEO (Generative Engine Optimization) engine — a CLI that
-  audits, generates, fixes, and tracks the pages large language models cite.
+  The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok.
+  Audit, generate, fix, and track the pages large language models cite.
   Open-source (MIT), built by Shadow.
 url: https://shadowresearch.github.io
 baseurl: /auto-geo

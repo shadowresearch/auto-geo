@@ -1,6 +1,6 @@
 # auto-geo
 
-> The open-source GEO (Generative Engine Optimization) engine — a CLI that audits, generates, fixes, and tracks the pages large language models cite. Open-source (MIT), built by Shadow.
+> The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok. A CLI that audits, generates, fixes, and tracks the pages large language models cite. Open-source (MIT), built by Shadow.
 
 `auto-geo` is a command-line GEO engine. It encodes the structural and quality patterns empirically linked to higher AI-engine citation rates — TL;DR capsules, question-format H2 headings, answer-first paragraphs, dense entity references, FAQ schema, and a rigid seven-block page architecture — into one workflow: `doctor` audits any URL for citation readiness, `write` generates publish-ready pages from target queries, `fix` rewrites existing pages, `check` measures whether AI engines (ChatGPT, Perplexity, Claude, Gemini, Grok) actually cite your domain, and `history` trends that coverage over time. State is file-based and committable: tracked prompts in `.auto-geo/prompts.txt`, every check run saved to `.auto-geo/checks/`. Built by [Shadow](https://www.shadow.inc) — a media research lab building the next generation of AI-powered media intelligence and communications technology, in partnership with the teams that put OpenAI, TikTok, Meta, Amazon, and Lovable on the map.
 

@@ -2,14 +2,14 @@
 title: Home
 nav_order: 1
 description: >-
-  The open-source GEO (Generative Engine Optimization) engine — a CLI that
-  audits, generates, fixes, and tracks the pages large language models cite.
+  The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok — audit, generate, fix, and track
+  the pages large language models cite.
 permalink: /
 ---
 
 # auto-geo
 
-The open-source GEO engine — audit, generate, fix, and track the pages large language models cite.
+The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok.
 {: .fs-6 .fw-300 }
 
 [Get started](#quickstart){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
