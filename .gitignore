@@ -23,3 +23,7 @@ docs/.jekyll-metadata
 # bun compile temp artifacts
 *.bun-build
 .*.bun-build
+
+# bun lockfiles (pnpm-lock.yaml is the source of truth; CI's binaries job runs bun install fresh)
+bun.lock
+bun.lockb
