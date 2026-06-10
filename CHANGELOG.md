@@ -8,6 +8,14 @@ The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-06-10
+
+### Changed
+
+- **Docs overhaul — install-first, npx-free command guides.** README, all command docs, and AGENT.md now lead with `npm i -g auto-geo` and show bare `auto-geo` commands; `npx auto-geo@latest` remains documented once per page as the zero-install alternative.
+- **Docs site rebuilt on just-the-docs** (https://shadowresearch.github.io/auto-geo/): sidebar navigation (Home / Commands / Reference), built-in search, aux links to GitHub + npm, clean landing page with quickstart. The hand-rolled Cayman layout is gone; the llms.txt discovery tags and JSON-LD moved to the theme's `head_custom.html` hook.
+- `build-discovery.sh` now strips Jekyll front matter when assembling `llms-full.txt`.
+
 ## [0.8.0] — 2026-06-10
 
 ### Added

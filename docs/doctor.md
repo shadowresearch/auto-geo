@@ -1,20 +1,27 @@
+---
+title: "doctor"
+parent: "Commands"
+nav_order: 2
+description: "auto-geo doctor — audit any URL or sitemap for GEO citation readiness."
+---
+
 # auto-geo doctor
 
 A built-in CLI for auditing any public webpage against the GEO citation-readiness checks codified in [the GEO SOP](./sop.md).
 
 ```bash
-npx auto-geo doctor https://example.com/some-page
+auto-geo doctor https://example.com/some-page
 ```
 
 Designed as the shareable artifact for the `auto-geo` project: run it on any URL, get a structured report on whether the page is shaped for AI-search citation, and a ranked list of fixes if it isn't. Useful in CI (the binary exits non-zero when the page falls below 75%), useful as a one-shot competitive audit, useful as a sitemap-wide health check.
 
 ## Install
 
-The CLI ships with the `auto-geo` package — no separate install step. Either invoke it through `npx` for one-shot use, or add `auto-geo` as a dependency and call `auto-geo doctor` from your scripts.
+The CLI ships with the `auto-geo` package — install once with `npm i -g auto-geo`, or run one-shot via `npx auto-geo@latest doctor <url>` (CI-friendly, nothing to preinstall).
 
 ```bash
 # One-shot
-npx auto-geo@latest doctor https://example.com/page
+auto-geo doctor https://example.com/page
 
 # Installed locally
 pnpm add auto-geo
@@ -44,7 +51,7 @@ Flags:
 Exit code: `0` if score ≥ 75%, `1` otherwise. The sitemap variant uses the mean score across all successfully-fetched pages. This is intentionally usable in CI:
 
 ```bash
-npx auto-geo doctor https://example.com/page && deploy
+auto-geo doctor https://example.com/page && deploy
 ```
 
 ## What it checks
@@ -69,7 +76,7 @@ The score is reported as a fraction (`4 / 8 checks pass`) and a posture label (`
 ## Sitemap mode
 
 ```bash
-npx auto-geo doctor --site https://example.com/sitemap.xml
+auto-geo doctor --site https://example.com/sitemap.xml
 ```
 
 Fetches the sitemap (supports both `<urlset>` and `<sitemapindex>`), audits every URL, and returns an aggregate report showing:

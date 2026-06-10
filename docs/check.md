@@ -1,9 +1,16 @@
+---
+title: "check"
+parent: "Commands"
+nav_order: 6
+description: "auto-geo check — measure citation coverage across Perplexity, OpenAI, Anthropic, Gemini, and Grok."
+---
+
 # auto-geo check
 
 A built-in CLI for measuring whether AI search engines actually cite your domain. Where [`auto-geo doctor`](./doctor.md) grades a page's _structural readiness_ for citation, `auto-geo check` measures the _outcome_: for a given list of queries, do the engines surface your pages in their answers?
 
 ```bash
-npx auto-geo check \
+auto-geo check \
   --domain shadow.inc \
   --query "what is GEO" \
   --query "how do I get cited by ChatGPT" \
@@ -14,18 +21,12 @@ This is the holy-grail metric for a GEO program: not "is my page optimized?", bu
 
 ## Install
 
-The CLI ships with the `auto-geo` package — no separate install step.
-
 ```bash
-# One-shot
-npx auto-geo@latest check --domain shadow.inc --query "what is GEO"
-
-# Installed locally
-pnpm add auto-geo
-pnpm exec auto-geo check --domain shadow.inc --query "what is GEO"
+npm i -g auto-geo
+auto-geo check --domain shadow.inc --query "what is GEO"
 ```
 
-Node `>=18.17` required.
+One-shot without installing: `npx auto-geo@latest check …`. Node `>=18.17` required.
 
 ## Setup — engine API keys
 
@@ -44,19 +45,19 @@ Pricing columns are point-in-time mid-2026 estimates used for the `--json` cost 
 ```bash
 # Single-engine examples — one per provider.
 export PERPLEXITY_API_KEY=pplx-xxxx
-npx auto-geo check --domain shadow.inc --query "what is GEO" --engine perplexity
+auto-geo check --domain shadow.inc --query "what is GEO" --engine perplexity
 
 export OPENAI_API_KEY=sk-xxxx
-npx auto-geo check --domain shadow.inc --query "what is GEO" --engine openai
+auto-geo check --domain shadow.inc --query "what is GEO" --engine openai
 
 export ANTHROPIC_API_KEY=sk-ant-xxxx
-npx auto-geo check --domain shadow.inc --query "what is GEO" --engine anthropic
+auto-geo check --domain shadow.inc --query "what is GEO" --engine anthropic
 
 export GOOGLE_API_KEY=AIza-xxxx        # or GEMINI_API_KEY
-npx auto-geo check --domain shadow.inc --query "what is GEO" --engine gemini
+auto-geo check --domain shadow.inc --query "what is GEO" --engine gemini
 
 export XAI_API_KEY=xai-xxxx
-npx auto-geo check --domain shadow.inc --query "what is GEO" --engine xai
+auto-geo check --domain shadow.inc --query "what is GEO" --engine xai
 # `--engine grok` is accepted as an alias for xai.
 ```
 
@@ -92,7 +93,7 @@ Flags:
 Exit code: `0` if coverage > 0% (any query cited your domain), `1` if coverage is 0%, `2` if `--max-runtime` tripped. CI-friendly:
 
 ```bash
-npx auto-geo check --domain shadow.inc --queries-file critical-queries.txt && deploy
+auto-geo check --domain shadow.inc --queries-file critical-queries.txt && deploy
 ```
 
 A `0%` coverage run will fail the build — surfacing GEO regressions before they ship.
@@ -120,7 +121,7 @@ engine:    perplexity (sonar)
 Coverage: 2/3 queries (67%) · 3 page citations total · ~$0.012 spent
 
 Next steps:
-  - Audit the un-cited queries' targeted pages with `npx auto-geo doctor <url>`
+  - Audit the un-cited queries' targeted pages with `auto-geo doctor <url>`
   - Re-run `auto-geo check` after publishing new pages targeting uncited queries
 ```
 
@@ -152,15 +153,15 @@ These are typical default-model round-trips against a warm connection. Your real
 | openai     | `gpt-4o-mini`       | ~6s                       |
 | anthropic  | `claude-sonnet-4-5` | ~8s                       |
 
-At the default `--concurrency 6`, a 50-query Perplexity run lands around **~67s** of API time (50 × ~8s ÷ 6 concurrent) plus a one-time `npx` cold-start (~3s). Bigger query sets scale linearly.
+At the default `--concurrency 6`, a 50-query Perplexity run lands around **~67s** of API time (50 × ~8s ÷ 6 concurrent) plus a one-time process start. Bigger query sets scale linearly.
 
 ### Recommended patterns
 
-**One CLI call, many `--query` flags.** Each `npx auto-geo check` invocation pays a one-time `npx` cold-start (~3s) before any work begins. For a 50-query audit, run ONE process with 50 `--query` flags rather than 50 separate processes — you save ~150s of cold-start alone.
+**One CLI call, many `--query` flags.** Each `auto-geo check` invocation pays a one-time process start before any work begins. For a 50-query audit, run ONE process with 50 `--query` flags rather than 50 separate processes.
 
 ```bash
 # Good — one process, one cold-start.
-npx auto-geo check --domain shadow.inc \
+auto-geo check --domain shadow.inc \
   --query "what is GEO" \
   --query "open source GEO tools" \
   --query "how do I get cited by ChatGPT" \
@@ -170,13 +171,13 @@ npx auto-geo check --domain shadow.inc \
 A newline-separated file is even cleaner:
 
 ```bash
-npx auto-geo check --domain shadow.inc --queries-file critical-queries.txt
+auto-geo check --domain shadow.inc --queries-file critical-queries.txt
 ```
 
 **Stream output with `--ndjson` for agent integration.** Default human and `--json` modes wait until the whole run finishes before emitting output, which is fine for short runs but invisible-feeling for big ones. `--ndjson` emits one JSON object per line to stdout AS each query completes — partial results are available to a downstream consumer in real time, and the final line carries the rolled-up summary:
 
 ```bash
-npx auto-geo check --domain shadow.inc --queries-file q.txt --ndjson \
+auto-geo check --domain shadow.inc --queries-file q.txt --ndjson \
   | tee run.ndjson \
   | jq -r 'select(.cited == true) | .query'
 
@@ -230,7 +231,7 @@ Under `--engine all`, the per-line shape additionally includes an `engine` field
 **Cap CI runs with `--max-runtime`.** For CI integration, set a hard ceiling so a hung engine doesn't hold the runner:
 
 ```bash
-npx auto-geo check --domain shadow.inc \
+auto-geo check --domain shadow.inc \
   --queries-file critical-queries.txt \
   --max-runtime 180 \
   --ndjson --out report.json
@@ -285,7 +286,7 @@ export ANTHROPIC_API_KEY=sk-ant-xxxx
 export GOOGLE_API_KEY=AIza-xxxx
 export XAI_API_KEY=xai-xxxx
 
-npx auto-geo check --domain shadow.inc \
+auto-geo check --domain shadow.inc \
   --query "what is GEO" \
   --query "open source GEO tools" \
   --engine all
@@ -509,7 +510,7 @@ Drop `auto-geo check` into your deploy pipeline alongside `auto-geo doctor`:
   env:
     PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
   run: |
-    npx auto-geo check \
+    auto-geo check \
       --domain shadow.inc \
       --queries-file geo/critical-queries.txt \
       --json --out geo-report.json

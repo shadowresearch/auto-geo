@@ -1,3 +1,10 @@
+---
+title: "What is a GEO page?"
+parent: "Reference"
+nav_order: 1
+description: "What a GEO resource page is and why its structure differs from a blog post."
+---
+
 # What is a GEO resource page?
 
 A **GEO resource page** (Generative Engine Optimization resource page) is a public web page whose structure, density, and citation signals are engineered to be quoted verbatim by AI search engines (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini) when answering user queries.

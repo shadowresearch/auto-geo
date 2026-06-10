@@ -1,9 +1,16 @@
+---
+title: "fix"
+parent: "Commands"
+nav_order: 4
+description: "auto-geo fix — LLM-driven GEO rewrite of an existing page."
+---
+
 # auto-geo fix
 
 A built-in CLI for generating a GEO-optimized rewrite of any public webpage. Where [`auto-geo doctor`](./doctor.md) tells you what's wrong with a page, `auto-geo fix` produces a `ResourcePublishPayload` that would pass all 8 doctor checks.
 
 ```bash
-npx auto-geo fix https://www.example.com/some-blog-post --out ./fixed.json
+auto-geo fix https://www.example.com/some-blog-post --out ./fixed.json
 ```
 
 The output is a JSON file that conforms to the canonical [`resourcePublishSchema`](../cli/schema.ts). Publish it through your own pipeline and render at `/<basepath>/<slug>`; the structured fields map directly onto Article, BreadcrumbList, and FAQPage JSON-LD.
@@ -20,11 +27,11 @@ The `fix` pipeline orchestrates five steps:
 
 ## Install
 
-`auto-geo fix` ships with the `auto-geo` package — no separate install. The AI SDK (`ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`) is bundled as a runtime dependency so a fresh `npx` invocation works without extra setup. Node `>=18.17` required.
+`auto-geo fix` ships with the `auto-geo` package (`npm i -g auto-geo`) — no separate install. The AI SDK (`ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`) is installed alongside as a runtime dependency, so a fresh install works without extra setup. Node `>=18.17` required.
 
 ```bash
 # One-shot
-npx auto-geo@latest fix https://example.com/page --out ./fixed.json
+auto-geo fix https://example.com/page --out ./fixed.json
 
 # Installed locally
 pnpm add auto-geo
@@ -65,7 +72,7 @@ Missing keys produce a clear error before any network is issued; the dry-run fla
 ## Example session
 
 ```text
-$ npx auto-geo fix https://www.example.com/some-blog-post \
+$ auto-geo fix https://www.example.com/some-blog-post \
     --out ./fixed.json \
     --provider openai \
     --model gpt-4o-mini
@@ -106,7 +113,7 @@ Total: ~$0.04 estimated · 12s elapsed
 Next steps:
   1. Review ./fixed.json (especially TL;DR + FAQ — the citation-target chunks)
   2. Publish to your endpoint
-  3. Re-audit: npx auto-geo doctor https://www.example.com/<new-slug>
+  3. Re-audit: auto-geo doctor https://www.example.com/<new-slug>
 ```
 
 ## How the prompt is constructed

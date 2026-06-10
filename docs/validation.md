@@ -1,3 +1,10 @@
+---
+title: "Validation"
+parent: "Reference"
+nav_order: 4
+description: "Every hard reject and soft quality heuristic auto-geo enforces."
+---
+
 # Validation reference
 
 `auto-geo` enforces two layers of validation: **hard rejects** at the schema boundary and **soft quality heuristics** audited by `auto-geo doctor`.
