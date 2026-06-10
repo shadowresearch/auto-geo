@@ -48,9 +48,9 @@
     "discovery:build": "bash scripts/build-discovery.sh"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.81",
-    "@ai-sdk/openai": "^3.0.67",
-    "ai": "^6.0.196",
+    "@ai-sdk/anthropic": "^3.0.82",
+    "@ai-sdk/openai": "^3.0.69",
+    "ai": "^6.0.200",
     "linkedom": "^0.18.0",
     "zod": "^4.4.3"
   },
