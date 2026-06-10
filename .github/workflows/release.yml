@@ -35,8 +35,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Publish
-        run: pnpm publish --access public --no-git-checks --provenance
+      # Releases are sometimes published manually before the tag is
+      # pushed — skip cleanly instead of failing the whole workflow
+      # (which previously blocked release creation and binaries).
+      - name: Publish (skipped if version already on npm)
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$(npm view "auto-geo@$PKG_VERSION" version 2>/dev/null)" = "$PKG_VERSION" ]; then
+            echo "auto-geo@$PKG_VERSION already on npm — skipping publish"
+          else
+            pnpm publish --access public --no-git-checks --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -44,3 +53,49 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+
+  binaries:
+    name: Standalone binaries
+    runs-on: ubuntu-latest
+    needs: publish
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      # bun reads package.json directly; the pnpm lockfile is not
+      # consumed here. Dependencies are needed because the compile
+      # bundles ai / @ai-sdk/* / zod / linkedom into the executable.
+      - name: Install dependencies
+        run: bun install
+
+      - name: Compile standalone executables
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist-bin
+          for target in bun-darwin-arm64 bun-darwin-x64 bun-linux-x64 bun-linux-arm64 bun-windows-x64; do
+            suffix="${target#bun-}"
+            bun build cli/bin.ts --compile --minify \
+              --target="$target" \
+              --define "__AUTO_GEO_VERSION__=\"$VERSION\"" \
+              --outfile "dist-bin/auto-geo-${suffix}"
+          done
+          ls -la dist-bin/
+
+      - name: Smoke test (linux-x64)
+        run: |
+          ./dist-bin/auto-geo-linux-x64 --version
+          ./dist-bin/auto-geo-linux-x64 --help > /dev/null
+
+      - name: Checksums
+        run: |
+          cd dist-bin
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist-bin/*

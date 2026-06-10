@@ -8,6 +8,17 @@ The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-06-10
+
+### Added
+
+- **Standalone binaries on every release.** The release workflow now compiles self-contained executables (no Node required) for macOS (arm64/x64), Linux (x64/arm64), and Windows (x64) via `bun build --compile`, with SHA256 checksums, attached to each GitHub release. The version is embedded at compile time (`__AUTO_GEO_VERSION__`) since a compiled binary has no package.json to read.
+- **Homebrew tap**: `brew install shadowresearch/tap/auto-geo` ([shadowresearch/homebrew-tap](https://github.com/shadowresearch/homebrew-tap)). README documents brew + `mise use -g npm:auto-geo` + binary installs.
+
+### Fixed
+
+- **Release workflow no longer fails on every tag.** The npm publish step now skips cleanly when the version is already on the registry (manual publishes raced CI), so release creation and the new binaries job actually run.
+
 ## [0.8.2] — 2026-06-10
 
 ### Changed

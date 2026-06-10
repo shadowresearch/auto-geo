@@ -1,6 +1,6 @@
 {
   "name": "auto-geo",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "The open-source GEO engine that gets your brand mentioned in ChatGPT, Claude, Gemini, Perplexity, and Grok. Audit, generate, fix, and track the pages large language models cite. Built by Shadow, a media research lab building the next generation of AI-powered media intelligence and communications technology.",
   "type": "module",
   "license": "MIT",

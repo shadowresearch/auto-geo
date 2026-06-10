@@ -80,7 +80,14 @@ auto-geo check
 auto-geo history
 ```
 
-Node `>=18.17` required. Upgrading later is `npm i -g auto-geo@latest`.
+Node `>=18.17` required. Upgrading later is `npm i -g auto-geo@latest`. Other ways in:
+
+```bash
+brew install shadowresearch/tap/auto-geo   # Homebrew (macOS / Linux)
+mise use -g npm:auto-geo                   # mise
+```
+
+Standalone executables (no Node required) for macOS, Linux, and Windows ship with every [release](https://github.com/shadowresearch/auto-geo/releases/latest).
 
 ---
 
