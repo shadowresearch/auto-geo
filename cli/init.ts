@@ -263,12 +263,11 @@ export function buildEnvTemplate(): string {
 # Set the keys for whichever providers/engines you intend to use.
 # This file should be gitignored.
 
-# ── LLM generation (write, fix) ────────────────────────────────────
+# ── Generation + citation checking (write, fix, check) ─────────────
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 
-# ── Citation-check engines (check) ─────────────────────────────────
-# OPENAI_API_KEY and ANTHROPIC_API_KEY above are also used by \`check\`.
+# ── Citation checking only (check) ─────────────────────────────────
 PERPLEXITY_API_KEY=
 GEMINI_API_KEY=
 XAI_API_KEY=
