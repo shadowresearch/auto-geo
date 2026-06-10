@@ -8,6 +8,13 @@ The CLI commands, their flags, and their `--json` / `--ndjson` output shapes are
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-06-10
+
+### Fixed
+
+- **`.env.local` template labeling.** The scaffold's section headers implied `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` were used only by `write` / `fix`. They are also `check` engines — the headers now say so: "Generation + citation checking (write, fix, check)" vs "Citation checking only (check)" for Perplexity / Gemini / xAI.
+- **Hermetic test suite.** `run()`-level tests resolve config / workspace / env files by walking up from cwd, so a developer's own `auto-geo.config.json` or `.auto-geo/` above the clone leaked into assertions. A vitest setup file now chdirs each worker into a fresh tmpdir.
+
 ## [0.7.0] — 2026-06-10
 
 **auto-geo is now CLI-only — a complete, file-based GEO engine.** The package was cut down to the thing people actually use (the CLI) and built out into a full loop: set up once, audit, generate, fix, measure, and now *track over time*.
