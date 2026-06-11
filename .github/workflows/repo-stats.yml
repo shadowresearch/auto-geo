@@ -1,0 +1,24 @@
+name: Repo stats
+
+# Daily snapshot of stars / forks / views / clones via
+# jgehrcke/github-repo-stats. GitHub's traffic API only retains a
+# rolling 14-day window — this action accumulates the history past
+# that, committing data + a rendered report to the
+# `github-repo-stats` branch. Runs entirely on GitHub infrastructure.
+
+on:
+  schedule:
+    # 23:05 UTC daily — odd minute to dodge the top-of-hour cron rush.
+    - cron: "5 23 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jgehrcke/github-repo-stats@v1.4.2
+        with:
+          ghtoken: ${{ secrets.GITHUB_TOKEN }}
