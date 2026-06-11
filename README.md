@@ -25,6 +25,10 @@ auto-geo check     # measure: do AI engines actually cite you?
 auto-geo history   # track citation coverage over time
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/shadowresearch/auto-geo/main/.github/demo.gif" alt="auto-geo demo — tracked prompts, live citation check across AI engines, and coverage history" width="820">
+</p>
+
 Everything is file-based and committable — tracked prompts, check history, config. No server, no account, no database. One install away:
 
 ```bash
